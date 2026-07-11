@@ -6,14 +6,14 @@ Accepted
 
 ## Context and Problem Statement
 
-IndigoPay connects donors with verified climate projects. The platform needed to decide whether donations should go directly from donor wallets to project wallets, or whether IndigoPay should receive, hold, and later disburse funds as a custodial intermediary.
+Stellar-IndigoPay connects donors with verified climate projects. The platform needed to decide whether donations should go directly from donor wallets to project wallets, or whether IndigoPay should receive, hold, and later disburse funds as a custodial intermediary.
 
 This decision affects donor trust, operational risk, regulatory exposure, incident impact, and the architecture of the Soroban contract.
 
 ## Decision Drivers
 
 - Donors should know that their donation reaches the project wallet directly.
-- IndigoPay should minimize custody, private-key, and treasury-management risk.
+- Stellar-IndigoPay should minimize custody, private-key, and treasury-management risk.
 - The platform should avoid becoming the critical path for fund disbursement.
 - Donation transparency should be available through Stellar transactions and Soroban impact records.
 - Project wallets should be visible and auditable.
@@ -29,11 +29,11 @@ This decision affects donor trust, operational risk, regulatory exposure, incide
 
 Chosen option: Direct-to-wallet payments.
 
-Donations are sent from the donor wallet directly to the verified project wallet. IndigoPay records donation metadata in the backend and donation-derived impact state in Soroban, but does not custody the donated funds.
+Donations are sent from the donor wallet directly to the verified project wallet. Stellar-IndigoPay records donation metadata in the backend and donation-derived impact state in Soroban, but does not custody the donated funds.
 
 ## Positive Consequences
 
-- IndigoPay does not hold donor funds for the donation flow.
+- Stellar-IndigoPay does not hold donor funds for the donation flow.
 - A compromised platform backend cannot directly drain donated funds.
 - Donors and projects can verify payment destination and transaction history on Stellar.
 - The Soroban contract can remain focused on recording and aggregating impact state instead of managing balances.
@@ -41,7 +41,7 @@ Donations are sent from the donor wallet directly to the verified project wallet
 
 ## Negative Consequences
 
-- IndigoPay cannot reverse, pause, or recover a donation after the donor signs and submits it.
+- Stellar-IndigoPay cannot reverse, pause, or recover a donation after the donor signs and submits it.
 - Project wallet accuracy becomes critical before a project is listed or registered on-chain.
 - Refunds and disputes must happen outside the core platform flow.
 - Some matching, escrow, or conditional-release features require separate flows rather than changing the core donation path.
@@ -74,4 +74,4 @@ Donations are sent from the donor wallet directly to the verified project wallet
 
 - [Architecture overview](../architecture.md)
 - [Donation flow in the frontend](../../frontend/components/DonateForm.tsx)
-- [IndigoPay Soroban contract](../../contracts/indigopay-contract/src/lib.rs)
+- [Stellar-IndigoPay Soroban contract](../../contracts/indigopay-contract/src/lib.rs)

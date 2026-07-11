@@ -6,7 +6,7 @@ Accepted
 
 ## Context and Problem Statement
 
-Stellar IndigoPay needs a blockchain layer for transparent climate donations. Donors should be able to send small XLM-denominated donations directly to verified project wallets, while the platform records donation totals, donor impact, badges, and CO2 offset metrics in a way that can be audited outside the backend.
+Stellar-IndigoPay needs a blockchain layer for transparent climate donations. Donors should be able to send small XLM-denominated donations directly to verified project wallets, while the platform records donation totals, donor impact, badges, and CO2 offset metrics in a way that can be audited outside the backend.
 
 The project needed to choose whether to build this on Stellar/Soroban, an EVM chain, or an off-chain-only backend.
 
@@ -29,7 +29,7 @@ The project needed to choose whether to build this on Stellar/Soroban, an EVM ch
 
 Chosen option: Stellar payments plus Soroban contracts.
 
-Stellar is a better fit for IndigoPay's payment-first donation model because donations can be sent directly to project wallets while Soroban records project, donor, and impact state on-chain. This keeps funds out of platform custody, keeps small donations viable, and makes donation-derived impact data independently verifiable.
+Stellar is a better fit for Stellar-IndigoPay's payment-first donation model because donations can be sent directly to project wallets while Soroban records project, donor, and impact state on-chain. This keeps funds out of platform custody, keeps small donations viable, and makes donation-derived impact data independently verifiable.
 
 ## Positive Consequences
 
@@ -50,7 +50,7 @@ Stellar is a better fit for IndigoPay's payment-first donation model because don
 
 ### Stellar payments plus Soroban contracts
 
-- Good, because it matches IndigoPay's direct-to-project payment model.
+- Good, because it matches Stellar-IndigoPay's direct-to-project payment model.
 - Good, because Soroban records impact data without requiring custodial donation contracts.
 - Good, because Freighter and Horizon support a straightforward browser payment flow.
 - Bad, because ecosystem maturity and wallet familiarity are narrower than EVM.
@@ -60,7 +60,7 @@ Stellar is a better fit for IndigoPay's payment-first donation model because don
 - Good, because EVM has mature tooling, many wallets, and a large developer ecosystem.
 - Good, because Solidity contract patterns are well documented.
 - Bad, because gas costs and L2 fragmentation add friction for small recurring donations.
-- Bad, because an EVM-first flow would not naturally match IndigoPay's existing Stellar wallet, Horizon, and Soroban code paths.
+- Bad, because an EVM-first flow would not naturally match Stellar-IndigoPay's existing Stellar wallet, Horizon, and Soroban code paths.
 
 ### Off-chain-only backend records
 
@@ -72,5 +72,5 @@ Stellar is a better fit for IndigoPay's payment-first donation model because don
 ## More Information
 
 - [Architecture overview](../architecture.md)
-- [IndigoPay Soroban contract README](../../contracts/indigopay-contract/README.md)
-- [IndigoPay Soroban contract security notes](../../contracts/indigopay-contract/SECURITY.md)
+- [Stellar-IndigoPay Soroban contract README](../../contracts/indigopay-contract/README.md)
+- [Stellar-IndigoPay Soroban contract security notes](../../contracts/indigopay-contract/SECURITY.md)

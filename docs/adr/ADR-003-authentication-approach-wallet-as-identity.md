@@ -6,7 +6,7 @@ Accepted
 
 ## Context and Problem Statement
 
-IndigoPay needs to identify donors, project owners, and admins in a way that fits blockchain donations. The platform needed to decide whether to introduce traditional accounts with passwords or OAuth, rely on wallet public keys as identity, or support several wallet providers from the first release.
+Stellar-IndigoPay needs to identify donors, project owners, and admins in a way that fits blockchain donations. The platform needed to decide whether to introduce traditional accounts with passwords or OAuth, rely on wallet public keys as identity, or support several wallet providers from the first release.
 
 The current product is centered on Stellar transactions signed in Freighter, public donor profiles, project-owner wallet checks, and on-chain records keyed by Stellar addresses.
 
@@ -29,7 +29,7 @@ The current product is centered on Stellar transactions signed in Freighter, pub
 
 Chosen option: Wallet-as-identity with Freighter as the first supported wallet.
 
-IndigoPay treats the connected Stellar public key as the primary user identifier. Freighter signs transactions locally, and the app uses the resulting public key for donor profiles, dashboard state, project-owner checks, and transaction authorization flows.
+Stellar-IndigoPay treats the connected Stellar public key as the primary user identifier. Freighter signs transactions locally, and the app uses the resulting public key for donor profiles, dashboard state, project-owner checks, and transaction authorization flows.
 
 ## Positive Consequences
 
@@ -42,7 +42,7 @@ IndigoPay treats the connected Stellar public key as the primary user identifier
 ## Negative Consequences
 
 - Users without Freighter need to install it before using the main browser donation flow.
-- Account recovery is wallet recovery; IndigoPay cannot reset a lost wallet.
+- Account recovery is wallet recovery; Stellar-IndigoPay cannot reset a lost wallet.
 - Supporting mobile wallets or other Stellar wallets later will require provider adapters.
 - Backend routes that mutate wallet-owned resources must consistently verify wallet ownership or require signed authorization, not just accept a submitted public key.
 

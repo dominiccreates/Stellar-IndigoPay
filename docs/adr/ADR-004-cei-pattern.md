@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-`donate()` and `donate_usdc()` accept a caller-supplied token address (`token` / `usdc_token`) and call `token::Client::transfer()` to move funds. If the token contract is malicious or a reentrancy-enabled wrapper, it can call back into the IndigoPay contract during the transfer before any state has been written. Without CEI ordering, a reentrant call could:
+`donate()` and `donate_usdc()` accept a caller-supplied token address (`token` / `usdc_token`) and call `token::Client::transfer()` to move funds. If the token contract is malicious or a reentrancy-enabled wrapper, it can call back into the Stellar-IndigoPay contract during the transfer before any state has been written. Without CEI ordering, a reentrant call could:
 
 - Over-credit a donor (multiple badge tier upgrades from one payment)
 - Inflate `project.total_raised`, `donor_count`, or global counters
@@ -34,5 +34,5 @@ No state write occurs after the external transfer. The `donated` event is the on
 ## Soroban Security References
 
 - [Soroban Token Interface docs](https://developers.stellar.org/docs/soroban/token-interface) — minimize cross-contract calls
-- [IndigoPay SECURITY.md](../../contracts/indigopay-contract/SECURITY.md) — finding H-01 documents the pre-fix violation and fix
+- [Stellar-IndigoPay SECURITY.md](../../contracts/indigopay-contract/SECURITY.md) — finding H-01 documents the pre-fix violation and fix
 - [contract-integration.md](../contract-integration.md) — CEI best practices for cross-contract callers
