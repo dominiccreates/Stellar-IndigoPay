@@ -9,14 +9,14 @@ import { useXlmPrice } from "@/lib/priceContext";
 import type { LeaderboardEntry } from "@/utils/types";
 
 const AVATAR_COLORS = [
-  "#227239",
-  "#4caf70",
-  "#2e7d32",
-  "#1b5e20",
-  "#1565c0",
-  "#6a1b9a",
-  "#c62828",
-  "#ef6c00",
+  "#4F46E5",
+  "#7C3AED",
+  "#2563EB",
+  "#0891B2",
+  "#059669",
+  "#D97706",
+  "#DC2626",
+  "#9333EA",
 ];
 
 function hashToIndex(input: string, modulo: number) {
@@ -66,13 +66,13 @@ export default function LeaderboardTable({ limit = 20, period = "all" }: { limit
   if (loading) return (
     <div className="space-y-2">
       {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="animate-pulse flex items-center gap-4 p-4 rounded-xl bg-forest-50 border border-forest-100">
-          <div className="w-8 h-8 rounded-full bg-forest-200" />
+        <div key={i} className="animate-pulse flex items-center gap-4 p-4 rounded-xl bg-[rgba(99,102,241,0.04)] dark:bg-[rgba(129,140,248,0.06)] border border-[rgba(99,102,241,0.08)] dark:border-[rgba(129,140,248,0.10)]">
+          <div className="w-8 h-8 rounded-full bg-[rgba(99,102,241,0.10)] dark:bg-[rgba(129,140,248,0.12)]" />
           <div className="flex-1 space-y-2">
-            <div className="h-3 bg-forest-200 rounded w-1/3" />
-            <div className="h-2 bg-forest-100 rounded w-1/4" />
+            <div className="h-3 bg-[rgba(99,102,241,0.10)] dark:bg-[rgba(129,140,248,0.12)] rounded w-1/3" />
+            <div className="h-2 bg-[rgba(99,102,241,0.06)] dark:bg-[rgba(129,140,248,0.08)] rounded w-1/4" />
           </div>
-          <div className="h-4 bg-forest-200 rounded w-20" />
+          <div className="h-4 bg-[rgba(99,102,241,0.10)] dark:bg-[rgba(129,140,248,0.12)] rounded w-20" />
         </div>
       ))}
     </div>
@@ -83,7 +83,7 @@ export default function LeaderboardTable({ limit = 20, period = "all" }: { limit
   if (entries.length === 0) return (
     <div className="text-center py-12">
       <p className="text-3xl mb-3">🌱</p>
-      <p className="text-[#5a7a5a] dark:text-[#8aaa8a] font-body">No donors yet — be the first!</p>
+      <p className="text-[#475569] dark:text-[#94A3B8] font-body">No donors yet — be the first!</p>
     </div>
   );
 
@@ -93,13 +93,13 @@ export default function LeaderboardTable({ limit = 20, period = "all" }: { limit
     <div className="space-y-2">
       {entries.map((entry) => (
         <div key={entry.publicKey}
-          className="flex items-center gap-4 p-4 rounded-xl bg-white border border-[rgba(34,114,57,0.10)] hover:border-[rgba(34,114,57,0.25)] transition-all">
+          className="flex items-center gap-4 p-4 rounded-xl bg-white dark:bg-[#14142D] border border-[rgba(99,102,241,0.10)] dark:border-[rgba(129,140,248,0.12)] hover:border-[rgba(99,102,241,0.25)] dark:hover:border-[rgba(129,140,248,0.30)] transition-all">
 
           {/* Rank */}
           <div className="w-8 text-center flex-shrink-0">
             {entry.rank <= 3
               ? <span className="text-lg">{medals[entry.rank - 1]}</span>
-              : <span className="text-sm font-semibold text-[#8aaa8a] dark:text-forest-300 font-body">#{entry.rank}</span>
+              : <span className="text-sm font-semibold text-[#64748B] dark:text-[#94A3B8] font-body">#{entry.rank}</span>
             }
           </div>
 
@@ -118,11 +118,11 @@ export default function LeaderboardTable({ limit = 20, period = "all" }: { limit
                 href={accountUrl(entry.publicKey)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-semibold text-forest-900 hover:text-forest-600 transition-colors text-sm font-body block truncate"
+                className="font-semibold text-[#0F172A] dark:text-[#E2E8F0] hover:text-[#4F46E5] dark:hover:text-[#818CF8] transition-colors text-sm font-body block truncate"
               >
                 {entry.displayName || shortenAddress(entry.publicKey)}
               </a>
-              <p className="text-xs text-[#8aaa8a] dark:text-forest-300 font-body mt-0.5">
+              <p className="text-xs text-[#64748B] dark:text-[#94A3B8] font-body mt-0.5">
                 {entry.projectsSupported} project{entry.projectsSupported !== 1 ? "s" : ""} supported
               </p>
             </div>
@@ -130,15 +130,15 @@ export default function LeaderboardTable({ limit = 20, period = "all" }: { limit
 
           {/* Total donated */}
           <div className="text-right flex-shrink-0">
-            <p className="font-mono font-semibold text-forest-600 text-sm">
+            <p className="font-mono font-semibold text-[#4F46E5] dark:text-[#818CF8] text-sm">
               {formatXLM(entry.totalDonatedXLM)}
             </p>
             {formatUSDEquivalent(entry.totalDonatedXLM, xlmUsd) && (
-              <p className="text-[11px] text-[#8aaa8a] dark:text-forest-300 font-body">
+              <p className="text-[11px] text-[#64748B] dark:text-[#94A3B8] font-body">
                 {formatUSDEquivalent(entry.totalDonatedXLM, xlmUsd)}
               </p>
             )}
-            <p className="text-xs text-[#8aaa8a] dark:text-forest-300 font-body">donated</p>
+            <p className="text-xs text-[#64748B] dark:text-[#94A3B8] font-body">donated</p>
           </div>
         </div>
       ))}

@@ -30,11 +30,11 @@ export default function CircularProgress({
 
   const initialOffset = circumference;
 
-  let colorClass = "text-green-500";
+  let colorClass = "text-[#6366F1]"; // indigo-500
   if (percentage >= 50 && percentage <= 80) {
-    colorClass = "text-teal-500";
+    colorClass = "text-[#4F46E5]"; // indigo-600
   } else if (percentage > 80) {
-    colorClass = "text-emerald-500";
+    colorClass = "text-[#818CF8]"; // indigo-400
   }
 
   return (
@@ -42,7 +42,7 @@ export default function CircularProgress({
       <svg className="transform -rotate-90" width={size} height={size}>
         {/* Background rounded track */}
         <circle
-          className="text-[#e2ece2] stroke-current"
+          className="text-[rgba(99,102,241,0.10)] dark:text-[rgba(129,140,248,0.10)] stroke-current"
           strokeWidth={strokeWidth}
           fill="transparent"
           r={radius}
@@ -62,7 +62,7 @@ export default function CircularProgress({
           cy={size / 2}
         />
       </svg>
-      <span className="absolute font-semibold text-forest-900" style={{ fontSize: Math.max(10, size * 0.25) }}>
+      <span className="absolute font-semibold text-[#0F172A] dark:text-[#E2E8F0]" style={{ fontSize: Math.max(10, size * 0.25) }}>
         {Math.round(percentage)}%
       </span>
     </div>

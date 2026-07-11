@@ -57,7 +57,7 @@ const WalletAddressQRCode: React.FC<WalletAddressQRCodeProps> = ({
       <button
         type="button"
         onClick={() => setExpanded((prev) => !prev)}
-        className="flex items-center gap-2 text-xs font-semibold text-forest-700 hover:text-forest-900 transition-colors focus:outline-none focus:ring-2 focus:ring-forest-400 rounded"
+        className="flex items-center gap-2 text-xs font-semibold text-[#4F46E5] dark:text-[#818CF8] hover:text-[#3730A3] dark:hover:text-[#A5B4FC] transition-colors focus:outline-none focus:ring-2 focus:ring-[rgba(99,102,241,0.30)] rounded"
         aria-expanded={expanded}
         aria-controls="wallet-qr-panel"
       >
@@ -76,7 +76,7 @@ const WalletAddressQRCode: React.FC<WalletAddressQRCodeProps> = ({
           className="mt-3 flex flex-col items-center gap-2 animate-fade-in"
         >
           {/* White border so the QR has adequate quiet zone on coloured backgrounds */}
-          <div className="bg-white p-2 rounded-lg shadow-sm border border-forest-100 inline-block">
+          <div className="bg-white p-2 rounded-lg shadow-sm border border-[rgba(99,102,241,0.10)] dark:border-[rgba(129,140,248,0.12)] inline-block">
             <QRCodeCanvas
               value={stellarUri}
               size={size}
@@ -86,12 +86,12 @@ const WalletAddressQRCode: React.FC<WalletAddressQRCodeProps> = ({
             />
           </div>
 
-          <p className="text-[11px] text-[#5a7a5a] font-body text-center leading-snug max-w-[200px]">
+          <p className="text-[11px] text-[#475569] dark:text-[#94A3B8] font-body text-center leading-snug max-w-[200px]">
             Open <strong>Freighter</strong> or any Stellar wallet and scan to
             send XLM directly on-chain.
           </p>
 
-          <p className="text-[10px] text-[#8aaa8a] font-body font-mono break-all text-center max-w-[200px]">
+          <p className="text-[10px] text-[#64748B] dark:text-[#94A3B8] font-body font-mono break-all text-center max-w-[200px]">
             {walletAddress}
           </p>
         </div>
