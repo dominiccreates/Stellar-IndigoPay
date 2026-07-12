@@ -75,3 +75,4 @@ The compiled WASM file will be located at `target/wasm32v1-none/release/<contrac
 
 - **Cause**: The codebase contains unused variables or imports, which Rust flags aggressively by default.
 - **Fix**: While not blocking the build, you can prefix unused variables with an underscore (e.g., `_my_var`) or clean up the code.
+
