@@ -600,6 +600,15 @@ router.patch("/:id/status", adminRequired, async (req, res, next) => {
       }
     }
 
+    let co2AuditMetadata = null;
+    if (co2Verification) {
+      co2AuditMetadata = {
+        status: co2Verification.status,
+        reason: co2Verification.reason,
+        projectIds: co2Verification.projectIds,
+      };
+    }
+
     logAdminAction({
       actor,
       action: `verification.${status}`,
@@ -609,13 +618,7 @@ router.patch("/:id/status", adminRequired, async (req, res, next) => {
         fromStatus: row.status,
         toStatus: status,
         reviewerNotes: reviewerNotesStr,
-        co2Verification: co2Verification
-          ? {
-              status: co2Verification.status,
-              reason: co2Verification.reason,
-              projectIds: co2Verification.projectIds,
-            }
-          : null,
+        co2Verification: co2AuditMetadata,
       },
       ipAddress: req.ip,
     });
