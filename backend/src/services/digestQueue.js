@@ -20,6 +20,7 @@
 const PgBoss = require("pg-boss");
 const pool = require("../db/pool");
 const logger = require("../logger");
+const notificationService = require("./notificationService");
 
 const QUEUE = "monthly-impact-digest";
 // Default: 1st of every month at 08:00 UTC
@@ -318,13 +319,30 @@ async function runDigest() {
       const emails = subsResult.rows.map((r) => r.email);
       if (!emails.length) continue;
 
-      await sendDigestEmails({
+      const projectUrl = `${APP_URL}/projects/${project.id}`;
+      const digestBody = buildDigestHtml({
         project: { id: project.id, name: project.name },
         stats: { raisedXLM, co2OffsetKg },
         milestones: milestonesResult.rows,
         updates: updatesResult.rows,
-        emails,
+        projectUrl,
         monthLabel,
+      });
+      const digestText = buildDigestText({
+        project: { id: project.id, name: project.name },
+        stats: { raisedXLM, co2OffsetKg },
+        milestones: milestonesResult.rows,
+        updates: updatesResult.rows,
+        projectUrl,
+        monthLabel,
+      });
+
+      await notificationService.send({
+        type: "monthly_digest",
+        projectId: project.id,
+        title: `Your ${monthLabel} Impact Digest — ${project.name}`,
+        body: digestBody,
+        data: { text: digestText, stats: { raisedXLM, co2OffsetKg }, monthLabel },
       });
 
       sent += emails.length;
