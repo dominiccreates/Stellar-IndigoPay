@@ -9,6 +9,11 @@ const { v4: uuid } = require("uuid");
 const { z } = require("zod");
 const QRCode = require("qrcode");
 const pool = require("../db/pool");
+const { validate } = require("../middleware/validate");
+const {
+  stellarAddress,
+  uuid: uuidValidator,
+} = require("../validators/schemas");
 const { logAdminAction } = require("../services/audit");
 const {
   mapProjectRow,
@@ -879,87 +884,89 @@ router.get("/:id", async (req, res, next) => {
  * Follow a project. Body: { walletAddress: "G..." }
  * Idempotent — re-following a project that is already followed is a no-op.
  */
-router.post("/:id/follow", async (req, res, next) => {
-  try {
-    const { walletAddress } = req.body || {};
-    if (!walletAddress || typeof walletAddress !== "string") {
-      return res.status(400).json({ error: "walletAddress is required" });
+router.post(
+  "/:id/follow",
+  validate(z.object({ walletAddress: stellarAddress }), "body"),
+  async (req, res, next) => {
+    try {
+      const { walletAddress } = req.body;
+
+      const projectResult = await pool.query(
+        "SELECT id FROM projects WHERE id = $1",
+        [req.params.id],
+      );
+      if (!projectResult.rows[0]) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      // INSERT … ON CONFLICT DO NOTHING makes this idempotent.
+      await pool.query(
+        `INSERT INTO project_follows (project_id, wallet_address, created_at)
+         VALUES ($1, $2, NOW())
+         ON CONFLICT (project_id, wallet_address) DO NOTHING`,
+        [req.params.id, walletAddress],
+      );
+
+      const countResult = await pool.query(
+        "SELECT COUNT(*) AS count FROM project_follows WHERE project_id = $1",
+        [req.params.id],
+      );
+
+      res.json({
+        success: true,
+        data: {
+          isFollowing: true,
+          followCount: parseInt(countResult.rows[0].count, 10) || 0,
+        },
+      });
+    } catch (e) {
+      next(e);
     }
-
-    const projectResult = await pool.query(
-      "SELECT id FROM projects WHERE id = $1",
-      [req.params.id],
-    );
-    if (!projectResult.rows[0]) {
-      return res.status(404).json({ error: "Project not found" });
-    }
-
-    // INSERT … ON CONFLICT DO NOTHING makes this idempotent.
-    await pool.query(
-      `INSERT INTO project_follows (project_id, wallet_address, created_at)
-       VALUES ($1, $2, NOW())
-       ON CONFLICT (project_id, wallet_address) DO NOTHING`,
-      [req.params.id, walletAddress],
-    );
-
-    const countResult = await pool.query(
-      "SELECT COUNT(*) AS count FROM project_follows WHERE project_id = $1",
-      [req.params.id],
-    );
-
-    res.json({
-      success: true,
-      data: {
-        isFollowing: true,
-        followCount: parseInt(countResult.rows[0].count, 10) || 0,
-      },
-    });
-  } catch (e) {
-    next(e);
-  }
-});
+  },
+);
 
 /**
  * DELETE /api/projects/:id/follow
  * Unfollow a project. Body: { walletAddress: "G..." }
  * Idempotent — unfollowing a project not currently followed is a no-op.
  */
-router.delete("/:id/follow", async (req, res, next) => {
-  try {
-    const { walletAddress } = req.body || {};
-    if (!walletAddress || typeof walletAddress !== "string") {
-      return res.status(400).json({ error: "walletAddress is required" });
+router.delete(
+  "/:id/follow",
+  validate(z.object({ walletAddress: stellarAddress }), "body"),
+  async (req, res, next) => {
+    try {
+      const { walletAddress } = req.body;
+
+      const projectResult = await pool.query(
+        "SELECT id FROM projects WHERE id = $1",
+        [req.params.id],
+      );
+      if (!projectResult.rows[0]) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      await pool.query(
+        "DELETE FROM project_follows WHERE project_id = $1 AND wallet_address = $2",
+        [req.params.id, walletAddress],
+      );
+
+      const countResult = await pool.query(
+        "SELECT COUNT(*) AS count FROM project_follows WHERE project_id = $1",
+        [req.params.id],
+      );
+
+      res.json({
+        success: true,
+        data: {
+          isFollowing: false,
+          followCount: parseInt(countResult.rows[0].count, 10) || 0,
+        },
+      });
+    } catch (e) {
+      next(e);
     }
-
-    const projectResult = await pool.query(
-      "SELECT id FROM projects WHERE id = $1",
-      [req.params.id],
-    );
-    if (!projectResult.rows[0]) {
-      return res.status(404).json({ error: "Project not found" });
-    }
-
-    await pool.query(
-      "DELETE FROM project_follows WHERE project_id = $1 AND wallet_address = $2",
-      [req.params.id, walletAddress],
-    );
-
-    const countResult = await pool.query(
-      "SELECT COUNT(*) AS count FROM project_follows WHERE project_id = $1",
-      [req.params.id],
-    );
-
-    res.json({
-      success: true,
-      data: {
-        isFollowing: false,
-        followCount: parseInt(countResult.rows[0].count, 10) || 0,
-      },
-    });
-  } catch (e) {
-    next(e);
-  }
-});
+  },
+);
 
 /**
  * POST /api/projects/:id/generate-summary
@@ -985,14 +992,14 @@ router.delete("/:id/follow", async (req, res, next) => {
  * @returns {Promise<void>} Sends the summary queue status payload.
  * @throws {Error} If the summary queue call fails.
  */
-router.post("/:id/generate-summary", async (req, res, next) => {
-  try {
-    const { adminAddress } = req.body || {};
-    if (!adminAddress || typeof adminAddress !== "string") {
-      return res.status(400).json({ error: "adminAddress is required" });
-    }
+router.post(
+  "/:id/generate-summary",
+  validate(z.object({ adminAddress: stellarAddress }), "body"),
+  async (req, res, next) => {
+    try {
+      const { adminAddress } = req.body;
 
-    const projectResult = await pool.query(
+      const projectResult = await pool.query(
       "SELECT id, name, category, description, wallet_address FROM projects WHERE id = $1",
       [req.params.id],
     );
@@ -1221,17 +1228,12 @@ router.patch("/:id/status", async (req, res, next) => {
  * GET /api/projects/:id/impact-certificate
  * Returns an impact certificate for a donor on a project.
  */
-router.get("/:id/impact-certificate", async (req, res, next) => {
-  try {
-    const { donorAddress } = req.query;
-    if (!donorAddress || typeof donorAddress !== "string") {
-      return res
-        .status(400)
-        .json({ error: "donorAddress query parameter is required" });
-    }
-    if (!/^G[A-Z0-9]{55}$/.test(donorAddress)) {
-      return res.status(400).json({ error: "Invalid donorAddress format" });
-    }
+router.get(
+  "/:id/impact-certificate",
+  validate(z.object({ donorAddress: stellarAddress }), "query"),
+  async (req, res, next) => {
+    try {
+      const { donorAddress } = req.query;
 
     const projectResult = await pool.query(
       "SELECT * FROM projects WHERE id = $1",
@@ -1366,19 +1368,17 @@ router.get("/:id/on-chain-donations", async (req, res, next) => {
  * GET /api/projects/:id/badge-holders
  * Returns the community of badge-holding donors for each project.
  */
-router.get("/:id/badge-holders", async (req, res, next) => {
-  try {
-    const projectId = req.params.id;
-    const uuidRegex =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(projectId)) {
-      return res.status(404).json({ error: "Project not found" });
-    }
+router.get(
+  "/:id/badge-holders",
+  validate(z.object({ id: uuidValidator }), "params"),
+  async (req, res, next) => {
+    try {
+      const projectId = req.params.id;
 
-    const projectResult = await pool.query(
-      "SELECT id FROM projects WHERE id = $1",
-      [projectId],
-    );
+      const projectResult = await pool.query(
+        "SELECT id FROM projects WHERE id = $1",
+        [projectId],
+      );
     if (!projectResult.rows[0]) {
       return res.status(404).json({ error: "Project not found" });
     }

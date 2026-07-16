@@ -4,15 +4,16 @@
 "use strict";
 const express = require("express");
 const router = express.Router();
+const { z } = require("zod");
 const pool = require("../db/pool");
 const { mapProfileRow } = require("../services/store");
 const { createRateLimiter } = require("../middleware/rateLimiter");
+const { validate } = require("../middleware/validate");
+const { stellarAddress } = require("../validators/schemas");
 const {
   sanitizedStringField,
   validateBody,
 } = require("../middleware/validation");
-const { z } = require("zod");
-
 function validateKey(k) {
   if (!k || !/^G[A-Z0-9]{55}$/.test(k)) {
     const e = new Error("Invalid public key");
@@ -37,10 +38,12 @@ const profileSchema = z.object({
   }).optional(),
 });
 
-router.get("/:publicKey", async (req, res, next) => {
-  try {
-    validateKey(req.params.publicKey);
-    const result = await pool.query(
+router.get(
+  "/:publicKey",
+  validate(z.object({ publicKey: stellarAddress }), "params"),
+  async (req, res, next) => {
+    try {
+      const result = await pool.query(
       "SELECT * FROM profiles WHERE public_key = $1",
       [req.params.publicKey],
     );

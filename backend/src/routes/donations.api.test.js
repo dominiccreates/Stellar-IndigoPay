@@ -288,6 +288,7 @@ describe("GET /api/donations/:id", () => {
   test("returns 400 for invalid UUID", async () => {
     const res = await request(app).get("/api/donations/invalid-id").expect(400);
 
-    expect(res.body.error).toBe("Invalid donation ID");
+    expect(res.body.error).toBe("Validation failed");
+    expect(res.body.details[0].path).toBe("id");
   });
 });

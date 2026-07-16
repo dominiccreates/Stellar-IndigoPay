@@ -6,9 +6,16 @@ const EventEmitter = require("events");
 const express = require("express");
 const router = express.Router();
 const { v4: uuid } = require("uuid");
+const { z } = require("zod");
 const logger = require("../logger");
 const pool = require("../db/pool");
 const { createRateLimiter } = require("../middleware/rateLimiter");
+const { validate } = require("../middleware/validate");
+const {
+  donationSchema,
+  stellarAddress,
+  uuid: uuidValidator,
+} = require("../validators/schemas");
 const { mapDonationRow } = require("../services/store");
 const { enqueueProfileUpdate } = require("../services/profileQueue");
 const { server } = require("../services/stellar");
@@ -258,7 +265,7 @@ async function recordDonation(req, res, next) {
  * @returns {Promise<void>} Sends the created donation payload.
  * @throws {Error} If rate limiting or donation creation fails.
  */
-router.post("/", donationLimiter, recordDonation);
+router.post("/", donationLimiter, validate(donationSchema), recordDonation);
 
 // GET /api/donations/stream
 router.get("/stream", (req, res) => {
@@ -355,10 +362,12 @@ router.get("/project/:projectId", async (req, res, next) => {
  * @returns {Promise<void>} Sends the donor donation history.
  * @throws {Error} If validation or the donation query fails.
  */
-router.get("/donor/:publicKey", async (req, res, next) => {
-  try {
-    validateKey(req.params.publicKey);
-    const result = await pool.query(
+router.get(
+  "/donor/:publicKey",
+  validate(z.object({ publicKey: stellarAddress }), "params"),
+  async (req, res, next) => {
+    try {
+      const result = await pool.query(
       `SELECT * FROM donations
        WHERE donor_address = $1
        ORDER BY created_at DESC`,
@@ -371,21 +380,14 @@ router.get("/donor/:publicKey", async (req, res, next) => {
 });
 
 // GET /api/donations/:id - single donation fetch endpoint
-router.get("/:id", async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    // Basic UUID validation
-    if (
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-        id,
-      )
-    ) {
-      const e = new Error("Invalid donation ID");
-      e.status = 400;
-      throw e;
-    }
+router.get(
+  "/:id",
+  validate(z.object({ id: uuidValidator }), "params"),
+  async (req, res, next) => {
+    try {
+      const { id } = req.params;
 
-    const query = `
+      const query = `
       SELECT 
         d.*,
         p.name AS project_name,

@@ -28,8 +28,14 @@
 const express = require("express");
 const router = express.Router();
 const { v4: uuid } = require("uuid");
+const { z } = require("zod");
 const pool = require("../db/pool");
 const { adminRequired } = require("../middleware/auth");
+const { validate } = require("../middleware/validate");
+const {
+  verificationSchema,
+  stellarAddress,
+} = require("../validators/schemas");
 const { logAdminAction } = require("../services/audit");
 const { createRateLimiter } = require("../middleware/rateLimiter");
 const { sendAdminVerificationNotification } = require("../services/email");
@@ -37,28 +43,12 @@ const { backendName } = require("../services/storage");
 
 const submitLimiter = createRateLimiter(10, 15); // 10 submissions / 15 min / IP
 
-const VALID_CATEGORIES = [
-  "Reforestation",
-  "Solar Energy",
-  "Ocean Conservation",
-  "Clean Water",
-  "Wildlife Protection",
-  "Carbon Capture",
-  "Wind Energy",
-  "Sustainable Agriculture",
-  "Other",
-];
-
 const VALID_TRANSITIONS = {
   pending: ["in_review", "rejected"],
   in_review: ["approved", "rejected", "pending"],
   approved: [],
   rejected: ["pending"],
 };
-
-const STELLAR_ADDRESS_RE = /^G[A-Z2-7]{55}$/;
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const URL_RE = /^https?:\/\/[^\s]{2,}$/i;
 
 function mapRequestRow(row) {
   if (!row) return null;
@@ -96,166 +86,13 @@ function mapRequestRow(row) {
   };
 }
 
-function validateDocument(doc) {
-  if (!doc || typeof doc !== "object") return "each document must be an object";
-  if (typeof doc.url !== "string" || !URL_RE.test(doc.url))
-    return "document.url must be an http(s) URL";
-  if (
-    typeof doc.name !== "string" ||
-    doc.name.length < 1 ||
-    doc.name.length > 200
-  ) {
-    return "document.name must be a string (1-200 chars)";
-  }
-  if (typeof doc.size === "number" && doc.size < 0)
-    return "document.size must be >= 0";
-  return null;
-}
-
 /**
  * POST /api/verification-requests
  * Public. Persists the submission and notifies admins by email.
  */
-router.post("/", submitLimiter, async (req, res, next) => {
+router.post("/", submitLimiter, validate(verificationSchema), async (req, res, next) => {
   try {
-    const body = req.body || {};
-    const errors = [];
-
-    const orgName =
-      typeof body.organizationName === "string"
-        ? body.organizationName.trim()
-        : "";
-    if (orgName.length < 2 || orgName.length > 200) {
-      errors.push("organizationName must be 2-200 characters");
-    }
-
-    let website = null;
-    if (body.organizationWebsite != null && body.organizationWebsite !== "") {
-      if (
-        typeof body.organizationWebsite !== "string" ||
-        body.organizationWebsite.length > 500
-      ) {
-        errors.push(
-          "organizationWebsite must be a string up to 500 characters",
-        );
-      } else if (!URL_RE.test(body.organizationWebsite)) {
-        errors.push("organizationWebsite must be a valid http(s) URL");
-      } else {
-        website = body.organizationWebsite.trim();
-      }
-    }
-
-    let country = null;
-    if (body.organizationCountry != null && body.organizationCountry !== "") {
-      if (
-        typeof body.organizationCountry !== "string" ||
-        body.organizationCountry.trim().length > 80
-      ) {
-        errors.push("organizationCountry must be a string up to 80 characters");
-      } else {
-        country = body.organizationCountry.trim();
-      }
-    }
-
-    const email =
-      typeof body.contactEmail === "string"
-        ? body.contactEmail.trim().toLowerCase()
-        : "";
-    if (!EMAIL_RE.test(email))
-      errors.push("contactEmail must be a valid email");
-
-    const walletAddress =
-      typeof body.walletAddress === "string" ? body.walletAddress.trim() : "";
-    if (!STELLAR_ADDRESS_RE.test(walletAddress)) {
-      errors.push(
-        "walletAddress must be a valid Stellar address (56 chars, starts with G)",
-      );
-    }
-
-    const projectName =
-      typeof body.projectName === "string" ? body.projectName.trim() : "";
-    if (projectName.length < 2 || projectName.length > 200) {
-      errors.push("projectName must be 2-200 characters");
-    }
-
-    const projectCategory =
-      typeof body.projectCategory === "string"
-        ? body.projectCategory.trim()
-        : "";
-    if (!VALID_CATEGORIES.includes(projectCategory)) {
-      errors.push(
-        `projectCategory must be one of: ${VALID_CATEGORIES.join(", ")}`,
-      );
-    }
-
-    const projectLocation =
-      typeof body.projectLocation === "string"
-        ? body.projectLocation.trim()
-        : "";
-    if (projectLocation.length < 2 || projectLocation.length > 200) {
-      errors.push("projectLocation must be 2-200 characters");
-    }
-
-    let projectDescription = null;
-    if (body.projectDescription != null && body.projectDescription !== "") {
-      if (
-        typeof body.projectDescription !== "string" ||
-        body.projectDescription.length > 5000
-      ) {
-        errors.push(
-          "projectDescription must be a string up to 5000 characters",
-        );
-      } else {
-        projectDescription = body.projectDescription.trim();
-      }
-    }
-
-    const co2PerXLM = Number.parseFloat(body.co2PerXLM);
-    if (!Number.isFinite(co2PerXLM) || co2PerXLM < 0) {
-      errors.push("co2PerXLM must be a non-negative number");
-    }
-
-    let expectedAnnualTonnesCO2 = null;
-    if (
-      body.expectedAnnualTonnesCO2 != null &&
-      body.expectedAnnualTonnesCO2 !== ""
-    ) {
-      const parsed = Number.parseFloat(body.expectedAnnualTonnesCO2);
-      if (!Number.isFinite(parsed) || parsed < 0) {
-        errors.push(
-          "expectedAnnualTonnesCO2 must be a non-negative number when provided",
-        );
-      } else {
-        expectedAnnualTonnesCO2 = parsed;
-      }
-    }
-
-    const documents = Array.isArray(body.supportingDocuments)
-      ? body.supportingDocuments
-      : [];
-    if (documents.length > 20) {
-      errors.push("supportingDocuments must contain at most 20 entries");
-    }
-    // Collect every document error so the submitter can fix them all in one
-    // pass instead of submitting and re-submitting one fix at a time.
-    documents.forEach((doc, index) => {
-      const err = validateDocument(doc);
-      if (err) errors.push(`supportingDocuments[${index}]: ${err}`);
-    });
-
-    let notes = null;
-    if (body.notes != null && body.notes !== "") {
-      if (typeof body.notes !== "string" || body.notes.length > 2000) {
-        errors.push("notes must be a string up to 2000 characters");
-      } else {
-        notes = body.notes.trim();
-      }
-    }
-
-    if (errors.length > 0) {
-      return res.status(400).json({ error: errors.join("; ") });
-    }
-
+    const body = req.body;
     const id = uuid();
     const result = await pool.query(
       `INSERT INTO verification_requests (
@@ -271,22 +108,22 @@ router.post("/", submitLimiter, async (req, res, next) => {
        ) RETURNING *`,
       [
         id,
-        orgName,
-        website,
-        country,
-        email,
-        walletAddress,
-        projectName,
-        projectCategory,
-        projectLocation,
-        projectDescription,
-        co2PerXLM.toFixed(7),
-        expectedAnnualTonnesCO2 != null
-          ? expectedAnnualTonnesCO2.toFixed(7)
+        body.organizationName.trim(),
+        body.organizationWebsite?.trim() || null,
+        body.organizationCountry?.trim() || null,
+        body.contactEmail.trim().toLowerCase(),
+        body.walletAddress,
+        body.projectName.trim(),
+        body.projectCategory,
+        body.projectLocation.trim(),
+        body.projectDescription?.trim() || null,
+        Number.parseFloat(body.co2PerXLM).toFixed(7),
+        body.expectedAnnualTonnesCO2 != null && body.expectedAnnualTonnesCO2 !== ""
+          ? Number.parseFloat(body.expectedAnnualTonnesCO2).toFixed(7)
           : null,
-        JSON.stringify(documents),
+        JSON.stringify(body.supportingDocuments),
         backendName(),
-        notes,
+        body.notes?.trim() || null,
       ],
     );
 
@@ -316,16 +153,13 @@ router.post("/", submitLimiter, async (req, res, next) => {
  * Public. Returns the request rows owned by the queried wallet (most recent
  * first). Lets submitters check status without admin auth. Capped at 50.
  */
-router.get("/me", async (req, res, next) => {
-  try {
-    const wallet =
-      typeof req.query.wallet === "string" ? req.query.wallet.trim() : "";
-    if (!STELLAR_ADDRESS_RE.test(wallet)) {
-      return res
-        .status(400)
-        .json({ error: "wallet query param must be a valid Stellar address" });
-    }
-    const result = await pool.query(
+router.get(
+  "/me",
+  validate(z.object({ wallet: stellarAddress }), "query"),
+  async (req, res, next) => {
+    try {
+      const wallet = req.query.wallet;
+      const result = await pool.query(
       `SELECT * FROM verification_requests
         WHERE wallet_address = $1
         ORDER BY submitted_at DESC

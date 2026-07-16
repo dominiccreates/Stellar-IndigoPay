@@ -146,7 +146,8 @@ describe("POST /api/verification-requests", () => {
       .post("/api/verification-requests")
       .send({ ...VALID_PAYLOAD, organizationName: "" });
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/organizationName/);
+    expect(res.body.error).toBe("Validation failed");
+    expect(res.body.details[0].path).toBe("organizationName");
     expect(pool.query).not.toHaveBeenCalled();
   });
 
@@ -155,7 +156,8 @@ describe("POST /api/verification-requests", () => {
       .post("/api/verification-requests")
       .send({ ...VALID_PAYLOAD, contactEmail: "not-an-email" });
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/contactEmail/);
+    expect(res.body.error).toBe("Validation failed");
+    expect(res.body.details[0].path).toBe("contactEmail");
   });
 
   test("rejects malformed Stellar address", async () => {
@@ -163,7 +165,8 @@ describe("POST /api/verification-requests", () => {
       .post("/api/verification-requests")
       .send({ ...VALID_PAYLOAD, walletAddress: "not-a-wallet" });
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/walletAddress/);
+    expect(res.body.error).toBe("Validation failed");
+    expect(res.body.details[0].path).toBe("walletAddress");
   });
 
   test("rejects project category not in the whitelist", async () => {
@@ -171,7 +174,8 @@ describe("POST /api/verification-requests", () => {
       .post("/api/verification-requests")
       .send({ ...VALID_PAYLOAD, projectCategory: "Not a real category" });
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/projectCategory/);
+    expect(res.body.error).toBe("Validation failed");
+    expect(res.body.details[0].path).toBe("projectCategory");
   });
 
   test("rejects negative CO₂ per XLM", async () => {
@@ -179,7 +183,8 @@ describe("POST /api/verification-requests", () => {
       .post("/api/verification-requests")
       .send({ ...VALID_PAYLOAD, co2PerXLM: "-1" });
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/co2PerXLM/);
+    expect(res.body.error).toBe("Validation failed");
+    expect(res.body.details[0].path).toBe("co2PerXLM");
   });
 
   test("rejects document with non-http(s) URL", async () => {
@@ -192,7 +197,8 @@ describe("POST /api/verification-requests", () => {
         ],
       });
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/document.url/);
+    expect(res.body.error).toBe("Validation failed");
+    expect(res.body.details[0].path).toBe("supportingDocuments.0.url");
   });
 });
 
