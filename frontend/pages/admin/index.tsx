@@ -12,6 +12,7 @@ import {
 } from "@/lib/api";
 import { formatXLM, shortenAddress } from "@/utils/format";
 import type { ClimateProject } from "@/utils/types";
+import { SkeletonBox } from "@/components/Skeleton";
 
 interface AdminIndexProps {
   publicKey: string | null;
@@ -113,9 +114,9 @@ export default function AdminIndex({ publicKey, onConnect }: AdminIndexProps) {
       </div>
 
       {loading && (
-        <div className="card animate-pulse space-y-4">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-4 bg-forest-100 rounded" />
+        <div className="card animate-pulse pointer-events-none space-y-4">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <SkeletonBox key={i} className="h-4 rounded" palette="forest" />
           ))}
         </div>
       )}
