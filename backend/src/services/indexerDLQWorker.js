@@ -53,7 +53,7 @@ function calculateNextRetry(retryCount) {
  * @returns {Promise<boolean>} True if resolved successfully.
  */
 async function processDLQEntry(entry) {
-  const { id, ledger, transaction_hash, retry_count } = entry;
+  const { id, transaction_hash, retry_count } = entry;
 
   try {
     // Fetch the transaction from Horizon

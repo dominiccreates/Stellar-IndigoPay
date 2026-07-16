@@ -28,7 +28,7 @@ const logger = require("../../logger");
  *
  * Returns the backfill result with processed/error counts.
  */
-router.post("/backfill", adminRequired, async (req, res, next) => {
+router.post("/backfill", adminRequired, async (req, res) => {
   try {
     const { fromLedger, toLedger, force } = req.body || {};
 
@@ -71,13 +71,12 @@ router.post("/backfill", adminRequired, async (req, res, next) => {
  *
  * GET /api/admin/indexer/status
  */
-router.get("/status", adminRequired, async (req, res, next) => {
+router.get("/status", adminRequired, async (req, res) => {
   try {
     const indexerStatus = getStatus();
     const dlqStatus = await getDLQStatus();
     const reconcilerStatus = getReconcilerStatus();
 
-    // Get cursor state from DB
     const stateResult = await pool.query(
       "SELECT last_processed_ledger, backfill_in_progress, reconciled_at FROM indexer_state WHERE key = 'primary'",
     );
@@ -97,7 +96,7 @@ router.get("/status", adminRequired, async (req, res, next) => {
       },
     });
   } catch (err) {
-    next(err);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

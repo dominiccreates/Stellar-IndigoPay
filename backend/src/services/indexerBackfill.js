@@ -106,7 +106,7 @@ async function runBackfill(options = {}) {
     // ── Paginated replay ─────────────────────────────────────────────────
     let processed = 0;
     let errors = 0;
-    let cursor = `now`;
+    let cursor = "now";
     let hasMore = true;
     let latestProcessed = startLedger;
 

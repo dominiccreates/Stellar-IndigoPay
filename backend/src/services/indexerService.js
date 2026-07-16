@@ -23,7 +23,6 @@
 const { server: stellarServer } = require("./stellar");
 const pool = require("../db/pool");
 const { handleDonation, setUsdcToXlmRate } = require("./indexerDonationHandler");
-const { enqueue: enqueueDLQ } = require("./indexerDLQWorker");
 const logger = require("../logger");
 const { Counter } = require("prom-client");
 const { registry } = require("./metrics");
