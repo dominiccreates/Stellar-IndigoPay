@@ -27,6 +27,8 @@ const { Contract, TransactionBuilder } = require("@stellar/stellar-sdk");
 const redis = require("../services/redis");
 const { adminRequired } = require("../middleware/auth");
 const { sanitizedStringField } = require("../middleware/validation");
+const { geocode } = require("../services/geocoder");
+const logger = require("../logger");
 
 const PROJECTS_LIST_CACHE_TTL = 60; // seconds
 const PROJECTS_LIST_CACHE_PREFIX = "projects:list:";
@@ -138,6 +140,72 @@ router.get("/featured", async (req, res, next) => {
     featuredCache = mapProjectRow(result.rows[0]);
     featuredCacheExpiry = now + 24 * 60 * 60 * 1000; // 24 hours
     res.json({ success: true, data: featuredCache });
+  } catch (e) {
+    next(e);
+  }
+});
+
+/**
+ * Proximity search: active projects within `radius` km of (lat, lng),
+ * nearest first. Uses the Haversine formula directly in SQL rather than
+ * PostGIS since the dataset doesn't warrant a spatial extension. Projects
+ * without stored coordinates never match — they simply aren't returned,
+ * not treated as an error.
+ *
+ * @route GET /api/projects/nearby
+ * @param {import('express').Request} req - Express request with lat, lng, radius query params.
+ * @param {import('express').Response} res - Express response object.
+ * @param {import('express').NextFunction} next - Express error middleware.
+ * @returns {Promise<void>} Sends the list of nearby projects, nearest first.
+ * @throws {Error} If the database query fails.
+ */
+router.get("/nearby", async (req, res, next) => {
+  try {
+    const lat = Number.parseFloat(req.query.lat);
+    const lng = Number.parseFloat(req.query.lng);
+    const radius = Math.min(
+      Number.parseFloat(req.query.radius) || 50,
+      20000,
+    );
+
+    if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
+      return res.status(400).json({ error: "lat must be a number between -90 and 90" });
+    }
+    if (!Number.isFinite(lng) || lng < -180 || lng > 180) {
+      return res.status(400).json({ error: "lng must be a number between -180 and 180" });
+    }
+    if (!Number.isFinite(radius) || radius <= 0) {
+      return res.status(400).json({ error: "radius must be a positive number" });
+    }
+
+    const result = await pool.query(
+      `SELECT * FROM (
+         SELECT *, (
+           6371 * acos(
+             LEAST(1, GREATEST(-1,
+               cos(radians($1)) * cos(radians(latitude)) *
+               cos(radians(longitude) - radians($2)) +
+               sin(radians($1)) * sin(radians(latitude))
+             ))
+           )
+         ) AS distance_km
+         FROM projects
+         WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+           AND status = 'active'
+       ) sub
+       WHERE distance_km <= $3
+       ORDER BY distance_km ASC
+       LIMIT 50`,
+      [lat, lng, radius],
+    );
+
+    res.json({
+      success: true,
+      data: result.rows.map((row) => ({
+        ...mapProjectRow(row),
+        distanceKm: Number.parseFloat(row.distance_km),
+      })),
+    });
   } catch (e) {
     next(e);
   }
@@ -349,10 +417,23 @@ router.post("/", async (req, res, next) => {
       ],
     );
 
+    let project = result.rows[0];
+    const coords = await geocode(project.location);
+    if (coords) {
+      const geocoded = await pool.query(
+        "UPDATE projects SET latitude = $1, longitude = $2 WHERE id = $3 RETURNING *",
+        [coords.latitude, coords.longitude, id],
+      );
+      project = geocoded.rows[0];
+    } else {
+      logger.warn(
+        { event: "project_no_geocode", projectId: id, location: project.location },
+        "Could not geocode project location",
+      );
+    }
+
     await redis.deletePattern(PROJECTS_LIST_CACHE_PREFIX + "*");
-    res
-      .status(201)
-      .json({ success: true, data: mapProjectRow(result.rows[0]) });
+    res.status(201).json({ success: true, data: mapProjectRow(project) });
   } catch (e) {
     next(e);
   }

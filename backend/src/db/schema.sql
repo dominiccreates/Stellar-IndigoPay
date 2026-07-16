@@ -39,6 +39,12 @@ ALTER TABLE projects ADD COLUMN IF NOT EXISTS webhook_secret TEXT;
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS webhook_url    TEXT;
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS webhook_secret TEXT;
 
+-- Geocoded coordinates for project.location, resolved server-side by
+-- services/geocoder.js at creation time. NULL until successfully geocoded.
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS latitude  DOUBLE PRECISION;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
+CREATE INDEX IF NOT EXISTS idx_projects_location ON projects (latitude, longitude);
+
 -- donations: immutable donation ledger. Each row is a single
 -- contribution from donor_address to a project. transaction_hash must be
 -- unique (one Stellar payment → one donation). No updated_at column —
