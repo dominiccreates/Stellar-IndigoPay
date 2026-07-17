@@ -18,6 +18,7 @@ const {
 const { createRateLimiter } = require("../middleware/rateLimiter");
 const { sendAppError } = require("../errors");
 const { buildAuditFilters } = require("./admin/audit-export");
+const { enqueueDigest } = require("../services/digestQueue");
 
 const loginLimiter = createRateLimiter(10, 15);
 
@@ -229,6 +230,29 @@ router.post("/sessions/:id/revoke", adminRequired, async (req, res, next) => {
       });
     }
     res.json({ success: true });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post("/digest/trigger", adminRequired, async (req, res, next) => {
+  try {
+    const { type } = req.body || {};
+    const allowedTypes = new Set(["daily", "weekly"]);
+
+    if (type !== undefined && !allowedTypes.has(type)) {
+      return sendAppError(res, "VALIDATION_ERROR", {
+        field: "type",
+        detail: "type must be either daily or weekly",
+      });
+    }
+
+    const requestedTypes = type ? [type] : ["daily", "weekly"];
+    for (const digestType of requestedTypes) {
+      await enqueueDigest(digestType);
+    }
+
+    res.json({ success: true, data: { triggered: requestedTypes } });
   } catch (e) {
     next(e);
   }

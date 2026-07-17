@@ -2,8 +2,8 @@
  * pages/index.tsx — IndigoPay landing page
  */
 import Link from "next/link";
-import Head from "next/head";
 import { useState, useRef, useEffect } from "react";
+import PageMeta from "@/components/PageMeta";
 import WalletConnect from "@/components/WalletConnect";
 import { useCountUp } from "@/hooks/useCountUp";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
@@ -183,15 +183,25 @@ export default function Home({ publicKey, onConnect }: HomeProps) {
     }
   }, [liveDonations.length, tickerIndex]);
 
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://stellar-indigopay.app";
+  const canonicalUrl = `${appUrl}/`;
+  const homeJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "Stellar IndigoPay",
+    url: canonicalUrl,
+    description:
+      "Stellar IndigoPay connects donors with verified climate projects worldwide. Donations go directly on-chain — no banks, no delays, no fees swallowed by middlemen.",
+  };
+
   return (
     <div className="relative overflow-hidden">
-      <Head>
-        <title>Stellar IndigoPay — Fund the planet. One XLM at a time.</title>
-        <meta
-          name="description"
-          content="Stellar IndigoPay connects donors with verified climate projects worldwide. Donations go directly on-chain — no banks, no delays, no fees swallowed by middlemen."
-        />
-      </Head>
+      <PageMeta
+        title="Stellar IndigoPay — Fund the planet. One XLM at a time."
+        description="Stellar IndigoPay connects donors with verified climate projects worldwide. Donations go directly on-chain — no banks, no delays, no fees swallowed by middlemen."
+        canonicalUrl={canonicalUrl}
+        jsonLd={homeJsonLd}
+      />
       {/* Background gradient */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         <div className="absolute top-0 inset-x-0 h-[600px] bg-gradient-to-b from-[rgba(79,70,229,0.03)] via-[rgba(124,58,237,0.02)] to-transparent dark:from-[rgba(129,140,248,0.05)] dark:via-[rgba(139,92,246,0.03)]" />
