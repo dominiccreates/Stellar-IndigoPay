@@ -2,6 +2,13 @@
  * pages/projects/[id].tsx — Single project detail + donate
  */
 import { useState, useEffect } from "react";
+import { useQueries, useQueryClient } from "@tanstack/react-query";
+import {
+  useProjectQuery,
+  useFollowProject,
+  useUnfollowProject,
+  useToggleUpdateLike,
+} from "@/hooks/queries";
 import { useRouter } from "next/router";
 import Head from "next/head";
 import type { GetServerSideProps } from "next";
@@ -28,9 +35,7 @@ import {
   createProjectCampaign,
   fetchProjectMatches,
   generateProjectSummary,
-  toggleUpdateLike,
-  followProject,
-  unfollowProject,
+  fetchUpdateLikes,
 } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import {
@@ -79,12 +84,36 @@ export default function ProjectDetail({
   const { id } = router.query;
   const { t } = useI18n();
 
-  const [project, setProject] = useState<ClimateProject | null>(null);
   const [updates, setUpdates] = useState<ProjectUpdate[]>([]);
-  const [updateLikes, setUpdateLikes] = useState<
-    Record<string, { liked: boolean; likeCount: number }>
-  >({});
-  const [loading, setLoading] = useState(true);
+  const [apiLoading, setApiLoading] = useState(true);
+
+  const queryClient = useQueryClient();
+  const [project, setProjectState] = useState<ClimateProject | null>(null);
+
+  const setProject = (p: ClimateProject | null) => {
+    setProjectState(p);
+    if (p) {
+      queryClient.setQueryData(["project", p.id], p);
+    }
+  };
+
+  const { data: projectQueryData, isLoading: projectQueryLoading } = useProjectQuery(
+    id as string,
+    undefined,
+    publicKey ?? undefined
+  );
+
+  useEffect(() => {
+    if (projectQueryData) {
+      setProjectState(projectQueryData);
+    }
+  }, [projectQueryData]);
+
+  const loading = projectQueryLoading || apiLoading;
+
+  const isFollowing = project?.isFollowing ?? false;
+  const followCount = project?.followCount ?? 0;
+
   const [refreshKey, setRefreshKey] = useState(0);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">(
     "idle",
@@ -118,9 +147,61 @@ export default function ProjectDetail({
     "idle" | "loading" | "error"
   >("idle");
   const [aiSummaryError, setAiSummaryError] = useState<string | null>(null);
-  const [isFollowing, setIsFollowing] = useState(false);
-  const [followCount, setFollowCount] = useState(0);
-  const [followLoading, setFollowLoading] = useState(false);
+
+  const followMutation = useFollowProject(publicKey || "", {
+    onError: () => {
+      setToasts((prev) => [
+        ...prev,
+        {
+          id: `follow-fail-${Date.now()}`,
+          title: "Failed to follow project. Please try again.",
+          createdAt: Date.now(),
+        },
+      ]);
+    },
+  });
+
+  const unfollowMutation = useUnfollowProject(publicKey || "", {
+    onError: () => {
+      setToasts((prev) => [
+        ...prev,
+        {
+          id: `unfollow-fail-${Date.now()}`,
+          title: "Failed to unfollow project. Please try again.",
+          createdAt: Date.now(),
+        },
+      ]);
+    },
+  });
+
+  const likeMutation = useToggleUpdateLike(publicKey || "", {
+    onError: () => {
+      setToasts((prev) => [
+        ...prev,
+        {
+          id: `like-fail-${Date.now()}`,
+          title: "Failed to update like. Please try again.",
+          createdAt: Date.now(),
+        },
+      ]);
+    },
+  });
+
+  const followLoading = followMutation.isPending || unfollowMutation.isPending;
+
+  const updateLikesQueries = useQueries({
+    queries: updates.map((u) => ({
+      queryKey: ["updateLikes", u.id],
+      queryFn: () => fetchUpdateLikes(u.id, publicKey ?? undefined),
+      enabled: !!u.id,
+    })),
+  });
+
+  const updateLikes = updates.reduce((acc, u, index) => {
+    const query = updateLikesQueries[index];
+    acc[u.id] = query?.data || { liked: false, likeCount: 0 };
+    return acc;
+  }, {} as Record<string, { liked: boolean; likeCount: number }>);
 
   const { toggleWishlist, isInWishlist } = useWishlist();
   const prefillAmount =
@@ -136,23 +217,18 @@ export default function ProjectDetail({
 
   useEffect(() => {
     if (!id) return;
+    setApiLoading(true);
     Promise.all([
-      fetchProject(id as string, publicKey ?? undefined),
       fetchProjectUpdates(id as string),
       fetchProjectMatches(id as string),
     ])
-      .then(([p, u, m]) => {
-        setProject(p);
+      .then(([u, m]) => {
         setUpdates(u);
         setMatches(m);
-        // Seed follow state from the server response so the button is correct
-        // on initial load without a separate round-trip.
-        setIsFollowing(p.isFollowing ?? false);
-        setFollowCount(p.followCount ?? 0);
       })
       .catch(() => router.push("/projects"))
-      .finally(() => setLoading(false));
-  }, [id, publicKey, router]);
+      .finally(() => setApiLoading(false));
+  }, [id, router]);
 
   useEffect(() => {
     if (!project) return;
@@ -161,9 +237,9 @@ export default function ProjectDetail({
       .then(setDiscussion)
       .catch(() => setDiscussion([]))
       .finally(() => setDiscussionLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- project object
     // identity changes at the same frequency as walletAddress; including
     // project in the deps array would cause spurious refetches.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.walletAddress]);
 
   useEffect(() => {
@@ -190,29 +266,20 @@ export default function ProjectDetail({
     }
   };
 
-  const handleToggleLike = async (updateId: string) => {
+  const handleToggleLike = (updateId: string) => {
     if (!publicKey) return;
-    try {
-      const result = await toggleUpdateLike(updateId, publicKey);
-      setUpdateLikes((prev) => ({ ...prev, [updateId]: result }));
-    } catch {
-      // silently fail
-    }
+    const isPending =
+      likeMutation.isPending && likeMutation.variables === updateId;
+    if (isPending) return;
+    likeMutation.mutate(updateId);
   };
 
-  const handleToggleFollow = async () => {
+  const handleToggleFollow = () => {
     if (!publicKey || !project || followLoading) return;
-    setFollowLoading(true);
-    try {
-      const result = isFollowing
-        ? await unfollowProject(project.id, publicKey)
-        : await followProject(project.id, publicKey);
-      setIsFollowing(result.isFollowing);
-      setFollowCount(result.followCount);
-    } catch {
-      // silently fail — button will revert on next load
-    } finally {
-      setFollowLoading(false);
+    if (isFollowing) {
+      unfollowMutation.mutate(project.id);
+    } else {
+      followMutation.mutate(project.id);
     }
   };
 
@@ -968,11 +1035,9 @@ export default function ProjectDetail({
                         isFollowing ? "Unfollow project" : "Follow project"
                       }
                     >
-                      {followLoading
-                        ? "…"
-                        : isFollowing
-                          ? `✓ Following${followCount > 0 ? ` (${followCount})` : ""}`
-                          : `Follow${followCount > 0 ? ` (${followCount})` : ""}`}
+                      {isFollowing
+                        ? `✓ Following${followCount > 0 ? ` (${followCount})` : ""}`
+                        : `Follow${followCount > 0 ? ` (${followCount})` : ""}`}
                     </button>
                   )}
                   <button
@@ -1493,7 +1558,11 @@ export default function ProjectDetail({
                       <div className="flex items-center gap-3 mt-2">
                         <button
                           onClick={() => handleToggleLike(u.id)}
-                          disabled={!publicKey}
+                          disabled={
+                            !publicKey ||
+                            (likeMutation.isPending &&
+                              likeMutation.variables === u.id)
+                          }
                           className={`flex items-center gap-1.5 text-xs font-body transition-colors ${
                             like?.liked
                               ? "text-red-500 font-semibold"

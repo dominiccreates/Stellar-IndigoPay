@@ -1,5 +1,7 @@
 import type { AppProps } from "next/app";
 import Head from "next/head";
+import { useState } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import SkipToContent from "@/components/SkipToContent";
 import { ThemeTiedToaster } from "@/components/ThemeTiedToaster";
 import { ThemeProvider } from "@/lib/theme";
@@ -17,34 +19,49 @@ import "@/styles/globals.css";
 // SkipToContent lives at the very top so it is the first focusable
 // element on the page (satisfies WCAG 2.4.1 Bypass Blocks).
 export default function App({ Component, pageProps }: AppProps) {
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            refetchOnWindowFocus: false,
+            retry: false,
+          },
+        },
+      }),
+  );
+
   return (
     <ErrorBoundary>
-      <ThemeProvider>
-        <I18nProvider>
-          <PriceProvider>
-            <WalletProvider>
-              <Head>
-                <title>
-                  Stellar-IndigoPay — Fund the planet. One XLM at a time.
-                </title>
-                <meta
-                  name="description"
-                  content="Donate directly to verified climate projects on Stellar. 100% on-chain, zero fees, maximum impact."
-                />
-                <meta
-                  name="viewport"
-                  content="width=device-width, initial-scale=1"
-                />
-              </Head>
-              <SkipToContent />
-              <main id="main-content" tabIndex={-1}>
-                <Component {...pageProps} />
-              </main>
-              <ThemeTiedToaster />
-            </WalletProvider>
-          </PriceProvider>
-        </I18nProvider>
-      </ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <I18nProvider>
+            <PriceProvider>
+              <WalletProvider>
+                <Head>
+                  <title>
+                    Stellar-IndigoPay — Fund the planet. One XLM at a time.
+                  </title>
+                  <meta
+                    name="description"
+                    content="Donate directly to verified climate projects on Stellar. 100% on-chain, zero fees, maximum impact."
+                  />
+                  <meta
+                    name="viewport"
+                    content="width=device-width, initial-scale=1"
+                  />
+                </Head>
+                <SkipToContent />
+                <main id="main-content" tabIndex={-1}>
+                  <Component {...pageProps} />
+                </main>
+                <ThemeTiedToaster />
+              </WalletProvider>
+            </PriceProvider>
+          </I18nProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
     </ErrorBoundary>
   );
 }
+

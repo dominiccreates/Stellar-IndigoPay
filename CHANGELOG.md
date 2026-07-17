@@ -2,6 +2,15 @@
 
 ### Features
 
+* **frontend:** implement optimistic project follow/unfollow and update likes using React Query (closes #256)
+  - Add `useProjectQuery`, `useFollowProject`, `useUnfollowProject`, and `useToggleUpdateLike` hooks in `frontend/hooks/queries.ts` utilizing React Query
+  - Integrate follow/unfollow project mutations with optimistic query cache updates and automatic error rollbacks
+  - Integrate update like mutations with optimistic updates and render individual like status dynamically in the feed using `useQueries`
+  - Guard follow and like actions to ignore/disable click triggers while mutations are actively pending
+  - Display error toast alerts on API mutation failure
+  - Wrap hooks and components in `QueryClientProvider` within Next.js `_app.tsx` root
+  - Add 6 hooks unit tests (`queries.test.tsx`) and 2 page integration tests (`projects-detail.test.tsx`)
+
 * **backend,frontend:** JWT refresh token rotation and session management for admin auth (GF-032, closes #87)
   - Access tokens cut to 15 minutes and carry a `jti`; refresh tokens are opaque, DB-backed, and live 7 days
   - New `refresh_tokens` and `token_blacklist` tables via migration 019
