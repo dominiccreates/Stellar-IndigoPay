@@ -12,6 +12,7 @@ const router = express.Router();
 const { v4: uuidv4 } = require("uuid");
 const pool = require("../db/pool");
 const { AppError } = require("../errors");
+const { verifyUnsubscribeToken } = require("../services/digestBuilder");
 
 function parseLastSeen(value) {
   if (!value || typeof value !== "string") return null;
@@ -400,6 +401,40 @@ router.post("/unregister", async (req, res, next) => {
     }
 
     res.json({ success: true, data: { tokenId: result.rows[0].id, active: false } });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// GET /api/notifications/unsubscribe
+// Disable email digest delivery for the wallet address encoded in the token.
+router.get("/unsubscribe", async (req, res, next) => {
+  try {
+    const { token } = req.query || {};
+
+    if (!token || typeof token !== "string") {
+      throw new AppError("VALIDATION_ERROR", { field: "token" });
+    }
+
+    let payload;
+    try {
+      payload = verifyUnsubscribeToken(token);
+    } catch (err) {
+      throw new AppError("VALIDATION_ERROR", {
+        field: "token",
+        detail: err.message,
+      });
+    }
+
+    await pool.query(
+      `INSERT INTO notification_preferences (id, wallet_address, channel, type, enabled)
+       VALUES ($1, $2, 'email', 'digest', false)
+       ON CONFLICT (wallet_address, channel, type)
+       DO UPDATE SET enabled = false, updated_at = NOW()`,
+      [uuidv4(), payload.walletAddress],
+    );
+
+    res.json({ success: true, message: "Digest emails unsubscribed successfully" });
   } catch (e) {
     next(e);
   }
