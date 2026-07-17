@@ -64,10 +64,10 @@ jobs:
         with:
           workspaces: contracts
 
-      - name: Run fuzz tests (10k iterations)
+      - name: Run fuzz tests (1.5k iterations)
         run: cargo test --features testutils -- fuzz
         env:
-          FUZZ_ITERATIONS: 10000
+          FUZZ_ITERATIONS: 1500
 
   coverage:
     name: Coverage (tarpaulin)

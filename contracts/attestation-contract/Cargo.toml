@@ -1,8 +1,8 @@
 [package]
-name = "escrow-contract"
+name = "attestation-contract"
 version = "0.1.0"
 edition = "2021"
-description = "Soroban escrow — client-funded jobs and release_escrow to freelancer"
+description = "Stellar IndigoPay — Cross-Chain Donation Attestation Bridge (Soroban)"
 license = "MIT"
 
 [lib]

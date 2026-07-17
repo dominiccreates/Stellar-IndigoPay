@@ -27,7 +27,7 @@
       "npx eslint --fix"
     ],
     "contracts/**/*.rs": [
-      "cargo fmt --check"
+      ".husky/check-rust-fmt.sh"
     ],
     "{backend,frontend,extension,mobile}/**/*.{json,md,yaml,yml}": [
       "npx prettier --write"
