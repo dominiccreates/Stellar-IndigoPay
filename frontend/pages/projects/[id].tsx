@@ -769,12 +769,12 @@ export default function ProjectDetail({
   };
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://stellar-indigopay.app";
-  const canonicalUrl = `${appUrl}${router.asPath.split("?")[0]}`;
+  const canonicalUrl = `${appUrl}${(router.asPath || "").split("?")[0]}`;
   const ogTitle = ogProject
     ? `${ogProject.name} — Stellar IndigoPay`
     : "Stellar IndigoPay";
   const ogDescription = ogProject
-    ? `${ogProject.description.slice(0, 160).trimEnd()}… Support this ${ogProject.category} project on Stellar IndigoPay.`
+    ? `${(ogProject.description || "").slice(0, 160).trimEnd()}… Support this ${ogProject.category} project on Stellar IndigoPay.`
     : "Donate XLM directly to verified climate projects on Stellar.";
   const ogImage = ogProject?.imageUrl
     ? ogProject.imageUrl
@@ -853,18 +853,6 @@ export default function ProjectDetail({
   else if (treesEquivalent < 50) analogy = "A growing mini-forest! 🌲";
   else analogy = "A massive impact for our planet! 🌍";
 
-const appUrl =
-  process.env.NEXT_PUBLIC_APP_URL || "https://stellar-indigopay.app";
-
-const ogTitle = ogProject
-  ? `${ogProject.name} — Stellar IndigoPay`
-  : "Stellar IndigoPay";
-
-const ogDescription = ogProject
-  ? `${(ogProject.description || "").slice(0, 160).trimEnd()}… Support this ${ogProject.category} project on Stellar.`
-  : "Donate XLM directly to verified climate projects on Stellar.";
-
-const ogImage = ogProject?.imageUrl || `${appUrl}/og-default.png`;
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 pb-24 sm:pb-10 animate-fade-in">
       <PageMeta

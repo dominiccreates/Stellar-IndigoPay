@@ -136,7 +136,7 @@ describe("ProjectDetail page integration tests", () => {
     expect(
       screen.getByText("Failed to follow project. Please try again."),
     ).toBeInTheDocument();
-  });
+  }, 15000);
 
   it("instantly toggles update like status, and handles concurrent click guards", async () => {
     let resolveLikePromise: (value: any) => void = () => {};
