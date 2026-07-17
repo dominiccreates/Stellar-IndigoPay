@@ -44,6 +44,10 @@ const logger = require("./logger");
 const requestLogger = require("./middleware/requestLogger");
 const requestId = require("./middleware/requestId");
 const queryRouter = require("./middleware/queryRouter");
+const {
+  apiVersionMiddleware,
+  registerApiVersionDiscoveryRoutes,
+} = require("./middleware/apiVersion");
 const metricsMiddleware = require("./middleware/metrics");
 const {
   createCorsMiddleware,
@@ -157,6 +161,11 @@ app.use(redisRateLimiter);
 
 // Per-request HTTP metrics (BEFORE routes so it captures the full request).
 app.use(metricsMiddleware);
+
+// API version negotiation (header/path/query) + deprecation/sunset signaling.
+app.use("/api", apiVersionMiddleware);
+app.use("/api/v1", apiVersionMiddleware);
+registerApiVersionDiscoveryRoutes(app);
 
 // ── Swagger UI (development only) ───────────────────────────────────────────
 if (process.env.NODE_ENV !== "production") {
