@@ -147,7 +147,7 @@ jobs:
 
       - name: Generate visual snapshots for Linux
         working-directory: frontend
-        run: npx playwright test e2e/visual.spec.ts --update-snapshots --project=chromium
+        run: npx playwright test visual.spec.ts --update-snapshots --project=chromium
 
       - name: Run Playwright tests
         working-directory: frontend
