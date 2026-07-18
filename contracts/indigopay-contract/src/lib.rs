@@ -80,6 +80,29 @@ pub struct Project {
     /// chain before this field existed. Per UPGRADE.md, new fields must
     /// be appended or live behind a new storage version.
     pub paused: bool,
+    /// Fundraising goal in stroops for the active time-bound campaign.
+    /// `0` when `campaign_status` is `None`.
+    pub goal: i128,
+    /// Ledger sequence after which Active-campaign donations are rejected.
+    pub deadline_ledger: u32,
+    /// Lifecycle of the project's optional time-bound campaign.
+    pub campaign_status: CampaignStatus,
+}
+
+/// Lifecycle of a project's optional time-bound fundraising campaign.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CampaignStatus {
+    /// No campaign configured — donations behave as before.
+    None,
+    /// Accepting donations until deadline or goal.
+    Active,
+    /// `total_raised` met or exceeded `goal`.
+    GoalReached,
+    /// Deadline passed without meeting the goal (set on admin close).
+    Expired,
+    /// Manually closed by admin before or after the goal.
+    Closed,
 }
 
 /// Input for registering a project via `batch_register_projects`.
@@ -449,6 +472,35 @@ fn calculate_badge(total_stroops: i128) -> BadgeTier {
     }
 }
 
+/// Reject donations when the project's campaign is not accepting them.
+fn require_campaign_accepts_donation(project: &Project, current_ledger: u32) {
+    match project.campaign_status {
+        CampaignStatus::None => {}
+        CampaignStatus::Active => {
+            if current_ledger > project.deadline_ledger {
+                panic!("Campaign deadline has passed");
+            }
+        }
+        CampaignStatus::GoalReached => panic!("Campaign goal already reached"),
+        CampaignStatus::Expired => panic!("Campaign has expired"),
+        CampaignStatus::Closed => panic!("Campaign is closed"),
+    }
+}
+
+/// After `total_raised` is updated, flip `Active` → `GoalReached` when the
+/// campaign goal is met. Returns `true` when the transition happened.
+fn apply_campaign_goal_progress(project: &mut Project) -> bool {
+    if project.campaign_status == CampaignStatus::Active
+        && project.goal > 0
+        && project.total_raised >= project.goal
+    {
+        project.campaign_status = CampaignStatus::GoalReached;
+        true
+    } else {
+        false
+    }
+}
+
 fn voting_weight_from_badge(badge: &BadgeTier) -> u32 {
     match badge {
         BadgeTier::None => 0,
@@ -528,6 +580,9 @@ impl IndigoPayContract {
             active: true,
             paused: false,
             registered_at: env.ledger().sequence(),
+            goal: 0,
+            deadline_ledger: 0,
+            campaign_status: CampaignStatus::None,
         };
         env.storage()
             .instance()
@@ -587,6 +642,9 @@ impl IndigoPayContract {
                 active: true,
                 paused: false,
                 registered_at: env.ledger().sequence(),
+                goal: 0,
+                deadline_ledger: 0,
+                campaign_status: CampaignStatus::None,
             };
             env.storage()
                 .instance()
@@ -740,6 +798,125 @@ impl IndigoPayContract {
         ensure_min_ttl(&env, VOTING_WINDOW_LEDGERS * 4);
     }
 
+    // ─── Time-bound campaigns ─────────────────────────────────────────────────
+
+    /// Admin-only: start a time-bound fundraising campaign on a project.
+    /// Goal is denominated in stroops (XLM-equivalent). Only one campaign
+    /// may be Active at a time; a prior campaign must be Closed or Expired.
+    pub fn create_campaign(
+        env: Env,
+        admin: Address,
+        project_id: String,
+        goal: i128,
+        deadline_ledger: u32,
+    ) {
+        require_admin_for_routine(&env, &admin);
+        require_not_paused(&env);
+        if goal <= 0 {
+            panic!("Campaign goal must be positive");
+        }
+        let current = env.ledger().sequence();
+        if deadline_ledger <= current {
+            panic!("Campaign deadline must be in the future");
+        }
+
+        let mut project: Project = env
+            .storage()
+            .instance()
+            .get(&DataKey::Project(project_id.clone()))
+            .expect("Project not found");
+        if !project.active {
+            panic!("Project is not active");
+        }
+        match project.campaign_status {
+            CampaignStatus::None | CampaignStatus::Closed | CampaignStatus::Expired => {}
+            CampaignStatus::Active | CampaignStatus::GoalReached => {
+                panic!("Project already has an open campaign");
+            }
+        }
+        if goal <= project.total_raised {
+            panic!("Campaign goal must exceed amount already raised");
+        }
+
+        project.goal = goal;
+        project.deadline_ledger = deadline_ledger;
+        project.campaign_status = CampaignStatus::Active;
+        env.storage()
+            .instance()
+            .set(&DataKey::Project(project_id.clone()), &project);
+        env.events().publish(
+            (symbol_short!("camp_crt"), admin, project_id),
+            (goal, deadline_ledger),
+        );
+    }
+
+    /// Admin-only: push an Active campaign's deadline further into the future.
+    pub fn extend_campaign(env: Env, admin: Address, project_id: String, new_deadline: u32) {
+        require_admin_for_routine(&env, &admin);
+        require_not_paused(&env);
+
+        let mut project: Project = env
+            .storage()
+            .instance()
+            .get(&DataKey::Project(project_id.clone()))
+            .expect("Project not found");
+        if project.campaign_status != CampaignStatus::Active {
+            panic!("Campaign is not active");
+        }
+        let current = env.ledger().sequence();
+        if current > project.deadline_ledger {
+            panic!("Campaign deadline has passed");
+        }
+        if new_deadline <= project.deadline_ledger {
+            panic!("New deadline must be after current deadline");
+        }
+        if new_deadline <= current {
+            panic!("Campaign deadline must be in the future");
+        }
+
+        project.deadline_ledger = new_deadline;
+        env.storage()
+            .instance()
+            .set(&DataKey::Project(project_id.clone()), &project);
+        env.events()
+            .publish((symbol_short!("camp_ext"), admin, project_id), new_deadline);
+    }
+
+    /// Admin-only: end a campaign. Early close → `Closed`; past deadline
+    /// without meeting the goal → `Expired`; closing after `GoalReached` → `Closed`.
+    pub fn close_campaign(env: Env, admin: Address, project_id: String) {
+        require_admin_for_routine(&env, &admin);
+        require_not_paused(&env);
+
+        let mut project: Project = env
+            .storage()
+            .instance()
+            .get(&DataKey::Project(project_id.clone()))
+            .expect("Project not found");
+        match project.campaign_status {
+            CampaignStatus::Active => {
+                if env.ledger().sequence() > project.deadline_ledger
+                    && project.total_raised < project.goal
+                {
+                    project.campaign_status = CampaignStatus::Expired;
+                } else {
+                    project.campaign_status = CampaignStatus::Closed;
+                }
+            }
+            CampaignStatus::GoalReached => {
+                project.campaign_status = CampaignStatus::Closed;
+            }
+            _ => panic!("Campaign cannot be closed"),
+        }
+        env.storage()
+            .instance()
+            .set(&DataKey::Project(project_id.clone()), &project);
+        env.events().publish(
+            (symbol_short!("camp_cls"), admin, project_id),
+            project.campaign_status.clone(),
+        );
+    }
+
     // ─── Donations ────────────────────────────────────────────────────────────
 
     pub fn donate(
@@ -801,6 +978,7 @@ impl IndigoPayContract {
         if project.paused {
             panic!("Project is temporarily paused");
         }
+        require_campaign_accepts_donation(&project, env.ledger().sequence());
 
         // Pre-compute CO2 increment with checked multiplication so an attacker
         // can't trigger a silent wrap via a project with a huge co2_per_xlm.
@@ -828,6 +1006,7 @@ impl IndigoPayContract {
             .total_raised
             .checked_add(amount)
             .expect("Project total_raised overflow");
+        let goal_reached = apply_campaign_goal_progress(&mut project);
         let donated_key = DataKey::HasDonated(project_id.clone(), donor.clone());
         if !env.storage().instance().has(&donated_key) {
             env.storage().instance().set(&donated_key, &true);
@@ -839,6 +1018,12 @@ impl IndigoPayContract {
         env.storage()
             .instance()
             .set(&DataKey::Project(project_id.clone()), &project);
+        if goal_reached {
+            env.events().publish(
+                (symbol_short!("camp_goal"), project_id.clone()),
+                project.total_raised,
+            );
+        }
 
         donor_stats.total_donated = donor_stats
             .total_donated
@@ -983,6 +1168,7 @@ impl IndigoPayContract {
         if project.paused {
             panic!("Project is temporarily paused");
         }
+        require_campaign_accepts_donation(&project, env.ledger().sequence());
 
         // Pre-compute CO2 increment using the XLM-equivalent received
         let xlm_units = xlm_amount / STROOP;
@@ -1008,6 +1194,7 @@ impl IndigoPayContract {
             .total_raised
             .checked_add(xlm_amount)
             .expect("Project total_raised overflow");
+        let goal_reached = apply_campaign_goal_progress(&mut project);
         let donated_key = DataKey::HasDonated(project_id.clone(), donor.clone());
         if !env.storage().instance().has(&donated_key) {
             env.storage().instance().set(&donated_key, &true);
@@ -1019,6 +1206,12 @@ impl IndigoPayContract {
         env.storage()
             .instance()
             .set(&DataKey::Project(project_id.clone()), &project);
+        if goal_reached {
+            env.events().publish(
+                (symbol_short!("camp_goal"), project_id.clone()),
+                project.total_raised,
+            );
+        }
 
         donor_stats.total_donated = donor_stats
             .total_donated
@@ -1630,6 +1823,7 @@ impl IndigoPayContract {
         if project.paused {
             panic!("Project is temporarily paused");
         }
+        require_campaign_accepts_donation(&project, env.ledger().sequence());
 
         // Pre-compute CO2 increment using XLM-equivalent
         let xlm_units = xlm_equivalent / STROOP;
@@ -1654,6 +1848,7 @@ impl IndigoPayContract {
             .total_raised
             .checked_add(xlm_equivalent)
             .expect("Project total_raised overflow");
+        let goal_reached = apply_campaign_goal_progress(&mut project);
         let donated_key = DataKey::HasDonated(project_id.clone(), donor.clone());
         if !env.storage().instance().has(&donated_key) {
             env.storage().instance().set(&donated_key, &true);
@@ -1665,6 +1860,12 @@ impl IndigoPayContract {
         env.storage()
             .instance()
             .set(&DataKey::Project(project_id.clone()), &project);
+        if goal_reached {
+            env.events().publish(
+                (symbol_short!("camp_goal"), project_id.clone()),
+                project.total_raised,
+            );
+        }
 
         donor_stats.total_donated = donor_stats
             .total_donated
@@ -3681,6 +3882,267 @@ mod tests {
         let (env, _cid, client, admin) = setup_admin_only();
         client.cancel_admin_transfer(&signers1(&env, &admin));
     }
+
+    // ─── Time-bound campaign tests ──────────────────────────────────────────
+
+    #[test]
+    fn test_create_campaign_sets_active_goal_and_deadline() {
+        let (env, _cid, client, admin, pid) = setup();
+        let deadline = env.ledger().sequence() + 1_000;
+        let goal = 5_000 * STROOP;
+        client.create_campaign(&admin, &pid, &goal, &deadline);
+        let p = client.get_project(&pid);
+        assert_eq!(p.campaign_status, CampaignStatus::Active);
+        assert_eq!(p.goal, goal);
+        assert_eq!(p.deadline_ledger, deadline);
+    }
+
+    #[test]
+    #[should_panic(expected = "Only admin can perform this action")]
+    fn test_create_campaign_non_admin_fails() {
+        let (env, _cid, client, _admin, pid) = setup();
+        let imposter = Address::generate(&env);
+        client.create_campaign(
+            &imposter,
+            &pid,
+            &(100 * STROOP),
+            &(env.ledger().sequence() + 10),
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Campaign goal must be positive")]
+    fn test_create_campaign_zero_goal_fails() {
+        let (env, _cid, client, admin, pid) = setup();
+        client.create_campaign(&admin, &pid, &0i128, &(env.ledger().sequence() + 10));
+    }
+
+    #[test]
+    #[should_panic(expected = "Campaign deadline must be in the future")]
+    fn test_create_campaign_past_deadline_fails() {
+        let (env, _cid, client, admin, pid) = setup();
+        client.create_campaign(&admin, &pid, &(100 * STROOP), &env.ledger().sequence());
+    }
+
+    #[test]
+    #[should_panic(expected = "Project already has an open campaign")]
+    fn test_create_campaign_while_active_fails() {
+        let (env, _cid, client, admin, pid) = setup();
+        let deadline = env.ledger().sequence() + 100;
+        client.create_campaign(&admin, &pid, &(100 * STROOP), &deadline);
+        client.create_campaign(&admin, &pid, &(200 * STROOP), &(deadline + 100));
+    }
+
+    #[test]
+    fn test_donate_under_goal_keeps_campaign_active() {
+        let (env, _cid, client, admin, pid) = setup();
+        let goal = 100 * STROOP;
+        client.create_campaign(&admin, &pid, &goal, &(env.ledger().sequence() + 1_000));
+
+        let donor = Address::generate(&env);
+        let token_admin = Address::generate(&env);
+        let token = env
+            .register_stellar_asset_contract_v2(token_admin)
+            .address();
+        StellarAssetClient::new(&env, &token).mint(&donor, &(50 * STROOP));
+        client.donate(&token, &donor, &pid, &(50 * STROOP), &0u32);
+
+        let p = client.get_project(&pid);
+        assert_eq!(p.total_raised, 50 * STROOP);
+        assert_eq!(p.campaign_status, CampaignStatus::Active);
+    }
+
+    #[test]
+    fn test_donate_reaching_goal_sets_goal_reached() {
+        let (env, _cid, client, admin, pid) = setup();
+        let goal = 100 * STROOP;
+        client.create_campaign(&admin, &pid, &goal, &(env.ledger().sequence() + 1_000));
+
+        let donor = Address::generate(&env);
+        let token_admin = Address::generate(&env);
+        let token = env
+            .register_stellar_asset_contract_v2(token_admin)
+            .address();
+        StellarAssetClient::new(&env, &token).mint(&donor, &(100 * STROOP));
+        client.donate(&token, &donor, &pid, &(100 * STROOP), &0u32);
+
+        let p = client.get_project(&pid);
+        assert_eq!(p.total_raised, 100 * STROOP);
+        assert_eq!(p.campaign_status, CampaignStatus::GoalReached);
+    }
+
+    #[test]
+    #[should_panic(expected = "Campaign goal already reached")]
+    fn test_donate_after_goal_reached_fails() {
+        let (env, _cid, client, admin, pid) = setup();
+        let goal = 50 * STROOP;
+        client.create_campaign(&admin, &pid, &goal, &(env.ledger().sequence() + 1_000));
+
+        let donor = Address::generate(&env);
+        let token_admin = Address::generate(&env);
+        let token = env
+            .register_stellar_asset_contract_v2(token_admin)
+            .address();
+        StellarAssetClient::new(&env, &token).mint(&donor, &(100 * STROOP));
+        client.donate(&token, &donor, &pid, &(50 * STROOP), &0u32);
+        client.donate(&token, &donor, &pid, &(50 * STROOP), &1u32);
+    }
+
+    #[test]
+    #[should_panic(expected = "Campaign deadline has passed")]
+    fn test_donate_after_deadline_fails() {
+        let (env, cid, client, admin, pid) = setup();
+        let start = env.ledger().sequence();
+        let deadline = start + 50;
+        client.create_campaign(&admin, &pid, &(1_000 * STROOP), &deadline);
+
+        extend_ttl(&env, &cid);
+        env.ledger().set_sequence_number(deadline + 1);
+
+        let donor = Address::generate(&env);
+        let token_admin = Address::generate(&env);
+        let token = env
+            .register_stellar_asset_contract_v2(token_admin)
+            .address();
+        StellarAssetClient::new(&env, &token).mint(&donor, &STROOP);
+        client.donate(&token, &donor, &pid, &STROOP, &0u32);
+    }
+
+    #[test]
+    fn test_extend_campaign_updates_deadline() {
+        let (env, _cid, client, admin, pid) = setup();
+        let start = env.ledger().sequence();
+        client.create_campaign(&admin, &pid, &(100 * STROOP), &(start + 100));
+        client.extend_campaign(&admin, &pid, &(start + 500));
+        assert_eq!(client.get_project(&pid).deadline_ledger, start + 500);
+    }
+
+    #[test]
+    #[should_panic(expected = "Only admin can perform this action")]
+    fn test_extend_campaign_non_admin_fails() {
+        let (env, _cid, client, admin, pid) = setup();
+        let start = env.ledger().sequence();
+        client.create_campaign(&admin, &pid, &(100 * STROOP), &(start + 100));
+        let imposter = Address::generate(&env);
+        client.extend_campaign(&imposter, &pid, &(start + 200));
+    }
+
+    #[test]
+    fn test_close_campaign_early_sets_closed() {
+        let (env, _cid, client, admin, pid) = setup();
+        client.create_campaign(
+            &admin,
+            &pid,
+            &(100 * STROOP),
+            &(env.ledger().sequence() + 1_000),
+        );
+        client.close_campaign(&admin, &pid);
+        assert_eq!(
+            client.get_project(&pid).campaign_status,
+            CampaignStatus::Closed
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Campaign is closed")]
+    fn test_donate_after_close_fails() {
+        let (env, _cid, client, admin, pid) = setup();
+        client.create_campaign(
+            &admin,
+            &pid,
+            &(100 * STROOP),
+            &(env.ledger().sequence() + 1_000),
+        );
+        client.close_campaign(&admin, &pid);
+
+        let donor = Address::generate(&env);
+        let token_admin = Address::generate(&env);
+        let token = env
+            .register_stellar_asset_contract_v2(token_admin)
+            .address();
+        StellarAssetClient::new(&env, &token).mint(&donor, &STROOP);
+        client.donate(&token, &donor, &pid, &STROOP, &0u32);
+    }
+
+    #[test]
+    fn test_close_campaign_after_deadline_sets_expired() {
+        let (env, cid, client, admin, pid) = setup();
+        let start = env.ledger().sequence();
+        let deadline = start + 40;
+        client.create_campaign(&admin, &pid, &(1_000 * STROOP), &deadline);
+        extend_ttl(&env, &cid);
+        env.ledger().set_sequence_number(deadline + 1);
+        client.close_campaign(&admin, &pid);
+        assert_eq!(
+            client.get_project(&pid).campaign_status,
+            CampaignStatus::Expired
+        );
+    }
+
+    #[test]
+    fn test_donate_asset_respects_campaign_goal() {
+        let (env, _cid, client, admin, pid) = setup();
+        client.create_campaign(
+            &admin,
+            &pid,
+            &(30 * STROOP),
+            &(env.ledger().sequence() + 1_000),
+        );
+        let donor = Address::generate(&env);
+        client.donate_asset(&donor, &pid, &(30 * STROOP), &symbol_short!("yXLM"), &0u32);
+        assert_eq!(
+            client.get_project(&pid).campaign_status,
+            CampaignStatus::GoalReached
+        );
+    }
+
+    #[test]
+    fn test_donate_usdc_respects_campaign_deadline() {
+        let (env, cid, client, admin, pid) = setup();
+        let token_admin = Address::generate(&env);
+        let token = env
+            .register_stellar_asset_contract_v2(token_admin)
+            .address();
+        client.set_usdc_token(&admin, &token);
+        let oracle_id = env.register_contract(None, MockOracle);
+        client.set_oracle(&admin, &oracle_id);
+
+        let start = env.ledger().sequence();
+        let deadline = start + 30;
+        // MockOracle rate = 8 XLM per USDC stroop; 1 USDC stroop → 8 XLM stroops.
+        client.create_campaign(&admin, &pid, &(1_000 * STROOP), &deadline);
+
+        extend_ttl(&env, &cid);
+        env.ledger().set_sequence_number(deadline + 1);
+
+        let donor = Address::generate(&env);
+        let usdc_amount: i128 = 1_000_000;
+        StellarAssetClient::new(&env, &token).mint(&donor, &usdc_amount);
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            client.donate_usdc(&token, &donor, &pid, &usdc_amount, &0u32);
+        }));
+        assert!(
+            result.is_err(),
+            "donate_usdc must reject after campaign deadline"
+        );
+    }
+
+    #[test]
+    fn test_donate_without_campaign_unchanged() {
+        let (env, _cid, client, _admin, pid) = setup();
+        let donor = Address::generate(&env);
+        let token_admin = Address::generate(&env);
+        let token = env
+            .register_stellar_asset_contract_v2(token_admin)
+            .address();
+        StellarAssetClient::new(&env, &token).mint(&donor, &(10 * STROOP));
+        client.donate(&token, &donor, &pid, &(10 * STROOP), &0u32);
+        let p = client.get_project(&pid);
+        assert_eq!(p.campaign_status, CampaignStatus::None);
+        assert_eq!(p.total_raised, 10 * STROOP);
+    }
+
+    // ─── Contract-level pause tests ─────────────────────────────────────────
 
     #[test]
     #[should_panic(expected = "old_admin is not in the admin set")]
