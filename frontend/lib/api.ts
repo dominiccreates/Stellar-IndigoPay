@@ -82,6 +82,37 @@ api.interceptors.response.use(
       }
     }
 
+    // Admin JWT 401 interceptor — refresh once and retry before giving up.
+    // Only fires for requests that already carry an Authorization header
+    // (i.e. admin-authenticated calls), so public API calls are unaffected.
+    if (
+      error.response?.status === 401 &&
+      !error.config.__adminRetry &&
+      error.config.headers?.Authorization
+    ) {
+      error.config.__adminRetry = true;
+      try {
+        // Dynamic import to avoid circular dependency at module init time.
+        const { refreshAdminToken, markSessionExpired } = await import("./adminAuth");
+        const newToken = await refreshAdminToken();
+        if (newToken) {
+          error.config.headers.Authorization = `Bearer ${newToken}`;
+          return api.request(error.config);
+        }
+        // Refresh failed — session is gone. Mark expired so the route guard
+        // redirects with reason=expired on the next navigation.
+        markSessionExpired();
+      } catch {
+        // Refresh threw — mark expired and let the original 401 propagate.
+        try {
+          const { markSessionExpired } = await import("./adminAuth");
+          markSessionExpired();
+        } catch {
+          // Best-effort — the route guard will catch it on next navigation.
+        }
+      }
+    }
+
     return Promise.reject(error);
   },
 );
