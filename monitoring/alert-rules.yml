@@ -83,14 +83,32 @@ groups:
   - name: stellar-indigopay-backend-database
     interval: 30s
     rules:
-      - alert: DbPoolExhausted
-        expr: db_pool_waiting_count{job="stellar-indigopay-backend"} > 5
-        for: 2m
+      - alert: DBPoolSaturated
+        expr: db_pool_waiting_count{job="stellar-indigopay-backend"} > 0
+        for: 5m
+        labels:
+          severity: warn
+        annotations:
+          summary: "Database connection pool has waiting clients"
+          description: |
+            {{ $value }} clients waiting for a connection.
+            Active: check db_pool_total_count, Max: check db_pool_max.
+            The pool may be saturated. Consider investigating slow queries
+            or increasing DB_POOL_MAX.
+
+      - alert: DBPoolExhausted
+        expr: db_pool_total_count{job="stellar-indigopay-backend"} >= db_pool_max{job="stellar-indigopay-backend"} AND db_pool_waiting_count{job="stellar-indigopay-backend"} > 0
+        for: 10m
         labels:
           severity: page
+          routing: pagerduty
         annotations:
-          summary: "Postgres pool has > 5 waiting clients for 2m"
-          description: "Consider raising DB_POOL_MAX or investigating slow queries."
+          summary: "Database connection pool exhausted for >10 minutes"
+          description: |
+            All connections are busy and clients are waiting.
+            Current active: {{ $value }} (check db_pool_total_count).
+            Adaptive sizing may have already increased the limit.
+            If this persists, investigate slow queries or provision more database resources.
 
       - alert: DbQuerySlow
         expr: |
