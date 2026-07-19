@@ -24,7 +24,7 @@
       "npx eslint --fix"
     ],
     "extension/**/*.{ts,tsx,js,jsx}": [
-      "npx eslint --fix"
+      "bash -c 'cd extension && npx tsc --noEmit'"
     ],
     "mobile/**/*.{ts,tsx,js,jsx}": [
       "npx eslint --fix"

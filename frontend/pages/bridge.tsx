@@ -7,6 +7,7 @@ import Head from "next/head";
 import Link from "next/link";
 import { getPublicKey } from "@stellar/freighter-api";
 import { shortenAddress } from "@/utils/format";
+import { safeRandomUUID } from "@/utils/uuid";
 import { fetchProjects, recordDonation, csrfFetch } from "@/lib/api";
 import type { ClimateProject } from "@/utils/types";
 
@@ -124,7 +125,7 @@ export default function BridgePage() {
         currency: "USDC",
         message: "Donated via Circle CCTP bridge",
         transactionHash: `bridge-${Date.now()}`,
-        idempotencyKey: crypto.randomUUID(),
+        idempotencyKey: safeRandomUUID(),
       });
 
       // Update bridge history

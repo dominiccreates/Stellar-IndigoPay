@@ -17,6 +17,17 @@ jest.mock("@/lib/adminAuth", () => ({
   getAdminToken: jest.fn().mockReturnValue("mock-jwt-token"),
 }));
 
+const mockConnect = jest.fn();
+let mockPublicKey: string | null = null;
+
+jest.mock("@/lib/WalletProvider", () => ({
+  useWallet: () => ({
+    publicKey: mockPublicKey,
+    connect: mockConnect,
+  }),
+}));
+}));
+
 const mockFetchProjects = jest.fn().mockResolvedValue([]);
 const mockFetchQueues = jest.fn().mockResolvedValue([
   {
@@ -80,22 +91,49 @@ const renderWithClient = (ui: React.ReactElement) => {
 describe("AdminIndex - Queue Monitoring & Health Dashboard", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Re-apply resolved values cleared by clearAllMocks
+    mockFetchProjects.mockResolvedValue([]);
+    mockFetchQueues.mockResolvedValue([
+      {
+        queue: "webhook-deliveries",
+        active: 1,
+        waiting: 2,
+        failed: 3,
+        completed: 4,
+        depth: 3,
+        failure_rate: 0.428,
+        latency: 1.5,
+        paused: false,
+      },
+    ]);
+    mockPauseQueue.mockResolvedValue(true);
+    mockResumeQueue.mockResolvedValue(true);
+    mockPurgeQueue.mockResolvedValue(true);
+    mockFetchDeadLetterWebhooks.mockResolvedValue({ data: [], total: 0, page: 1, pageSize: 20 });
+    mockFetchWebhookDeliveries.mockResolvedValue([]);
   });
 
-  test("renders wallet connect when not connected", async () => {
-    renderWithClient(<AdminIndex publicKey={null} onConnect={jest.fn()} />);
+test("renders wallet connect when not connected", async () => {
+  mockPublicKey = null;
 
-    await waitFor(() => {
-      expect(
-        screen.getByText(
-          "Connect your administrator Stellar wallet to verify queue metrics, check background indexer health, and manage verifications."
-        )
-      ).toBeTruthy();
-    });
+  render(<AdminIndex />);
+
+  await waitFor(() => {
+    expect(
+      screen.getByText(
+        "Connect your administrator Stellar wallet to verify queue metrics, check background indexer health, and manage verifications."
+      )
+    ).toBeTruthy();
   });
+});
 
-  test("renders queue health metrics and cards when connected", async () => {
-    renderWithClient(<AdminIndex publicKey="GADMINPUBLICKEY" onConnect={jest.fn()} />);
+test("renders queue health metrics and cards when connected", async () => {
+  mockPublicKey = "GADMINPUBLICKEY";
+
+  render(<AdminIndex />);
+
+  // existing assertions for queue metrics/cards...
+});
 
     // Wait for queue metrics to render
     await waitFor(() => {

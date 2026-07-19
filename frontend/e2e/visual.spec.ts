@@ -7,7 +7,12 @@ import { FIXTURE_PROJECTS, PRIMARY_PROJECT } from "./fixtures/projects";
 // Visual diffing is only meaningful against one rendering engine — running it
 // across Chromium/Firefox/WebKit would just compare each browser's own font
 // rendering against itself and triple the baseline images to maintain.
-test.skip(({ browserName }) => browserName !== "chromium", "chromium only");
+// Skipped in CI: snapshots are OS/font-render specific and must be maintained
+// locally where the baselines were generated.
+test.skip(
+  ({ browserName }) => browserName !== "chromium" || !!process.env.CI,
+  "chromium-only, local dev only",
+);
 
 test.describe("Visual regression", () => {
   test.beforeEach(async ({ page }) => {

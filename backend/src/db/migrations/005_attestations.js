@@ -28,7 +28,7 @@ module.exports = {
       CREATE TABLE IF NOT EXISTS attestations (
         id UUID PRIMARY KEY,
         -- Mirrors the on-chain monotonic counter set by the relayer.
-        -- Separate from `id` (UUID) so multiple backend replicas can
+        -- Separate from \`id\` (UUID) so multiple backend replicas can
         -- converge on the same on-chain id without conflicting inserts.
         on_chain_id BIGINT NOT NULL UNIQUE,
         source_chain TEXT NOT NULL,
@@ -42,7 +42,7 @@ module.exports = {
         status TEXT NOT NULL DEFAULT 'pending',
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         verified_at TIMESTAMPTZ,
-        -- The relayer Stellar address that submitted `record_attestation`.
+        -- The relayer Stellar address that submitted \`record_attestation\`.
         recorded_by TEXT,
         CONSTRAINT attestations_status_check
           CHECK (status IN ('pending','verified','revoked')),
@@ -87,7 +87,7 @@ module.exports = {
   },
 
   async down(client) {
-    await client.query(`DROP VIEW IF EXISTS attestations_public`);
-    await client.query(`DROP TABLE IF EXISTS attestations`);
+    await client.query("DROP VIEW IF EXISTS attestations_public");
+    await client.query("DROP TABLE IF EXISTS attestations");
   },
 };

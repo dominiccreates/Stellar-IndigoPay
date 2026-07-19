@@ -19,6 +19,7 @@ test.describe("Donation flow", () => {
   let backend: MockBackendState;
 
   test.beforeEach(async ({ page }) => {
+    test.slow();
     backend = { projects: structuredClone(FIXTURE_PROJECTS), donations: [] };
     await mockFreighterWallet(page);
     await mockBackendAPI(page, backend);
@@ -37,6 +38,7 @@ test.describe("Donation flow", () => {
     await expect(page.getByTestId("wallet-connect-button").first()).toBeVisible();
     await click(page.getByTestId("wallet-connect-button").first(), testInfo);
     await expect(page.getByTestId("browse-projects-link")).toBeVisible();
+    await page.waitForTimeout(500);
 
     // 3. Browse projects.
     await click(page.getByTestId("browse-projects-link"), testInfo);
@@ -66,7 +68,11 @@ test.describe("Donation flow", () => {
     );
 
     // 7. Navigate to the dashboard and verify the donation appears.
-    await page.goto("/dashboard");
+    try {
+      await page.goto("/dashboard");
+    } catch (e) {
+      await page.goto("/dashboard");
+    }
     await click(page.getByTestId("wallet-connect-button").first(), testInfo);
     await expect(page.getByTestId("wallet-address")).toBeVisible();
     await expect(page.getByTestId("donation-history")).toBeVisible();

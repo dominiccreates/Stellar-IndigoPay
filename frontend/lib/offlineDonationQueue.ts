@@ -1,3 +1,5 @@
+import { safeRandomUUID } from "../utils/uuid";
+
 export interface DonationQueuePayload {
   projectId: string;
   donorAddress: string;
@@ -45,7 +47,7 @@ export async function queueDonation(payload: DonationQueuePayload) {
   if (typeof window === "undefined") return null;
 
   const record: QueuedDonation = {
-    id: crypto.randomUUID(),
+    id: safeRandomUUID(),
     payload,
     createdAt: new Date().toISOString(),
     status: "queued",

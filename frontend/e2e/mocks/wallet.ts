@@ -48,6 +48,7 @@ export async function mockFreighterWallet(
           window.postMessage(
             {
               source: "FREIGHTER_EXTERNAL_MSG_RESPONSE",
+              messageId: data.messageId,
               messagedId: data.messageId,
               ...payload,
             },
