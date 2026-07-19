@@ -595,6 +595,13 @@ export default function DonateForm({
                   setAmount(p);
                   clearField("amount");
                 }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setAmount(p);
+                    clearField("amount");
+                  }
+                }}
                 className={`px-4 py-2 rounded-xl text-sm font-medium border transition-all font-body ${
                   amount === p
                     ? "btn-primary text-white border-0"

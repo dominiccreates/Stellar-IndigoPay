@@ -2,6 +2,14 @@
 
 ### Features
 
+* **frontend:** implement advanced keyboard navigation, global keyboard shortcuts, route focus management, and skip links
+  - Add `frontend/hooks/useShortcuts.ts` — custom keyboard shortcuts hook with modifier checking and input field exclusion
+  - Add `frontend/components/GlobalSearchModal.tsx` — search overlay modal accessible via Cmd+K / Ctrl+K with full keyboard navigation (arrows, Enter, Escape) and focus trap
+  - Update `frontend/pages/_app.tsx` to handle page focus management, global shortcuts, and App Shell layout (SkipToContent + Navbar wrapper)
+  - Update `frontend/components/DonateForm.tsx` to support Space/Enter keys on donation amount preset buttons
+  - Update `frontend/components/LanguageSwitcher.tsx` to prevent propagation of the Escape key
+  - Add Jest unit tests for `useShortcuts` hook in `frontend/hooks/__tests__/useShortcuts.test.ts`
+
 * **monitoring:** multi-window SLO burn-rate alerting with error budget dashboard (closes #240)
   - Defined SLOs: donation recording (99.5%) and project listing (99.9%) over 30-day rolling windows
   - Recording rules in `monitoring/recording-rules.yml` computing error ratios and budget remaining
