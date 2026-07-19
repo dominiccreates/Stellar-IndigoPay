@@ -13,15 +13,15 @@ jest.mock("../logger", () => ({
   error: jest.fn(),
 }));
 
-const pool = require("../db/pool");
-
 // Re-require after mocks so the module picks them up
 let matchExpiry;
+let pool;
 beforeEach(() => {
   jest.clearAllMocks();
   jest.useFakeTimers();
   // Clear module cache so each test gets a fresh interval handle
   jest.resetModules();
+  pool = require("../db/pool");
   matchExpiry = require("./matchExpiry");
 });
 
@@ -91,10 +91,15 @@ describe("start / stop", () => {
     matchExpiry.start();
     matchExpiry.start(); // second call should be a no-op
 
+    // Wait for immediate async run (both queries) to complete
+    await Promise.resolve();
+    await Promise.resolve();
+
     const callsAfterStart = pool.query.mock.calls.length;
     matchExpiry.stop();
 
     jest.advanceTimersByTime(15 * 60 * 1000 + 1000);
+    await Promise.resolve();
     await Promise.resolve();
 
     // No new calls after stop

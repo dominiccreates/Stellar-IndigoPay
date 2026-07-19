@@ -11,6 +11,7 @@ jest.mock("next/router", () => ({
   useRouter: () => ({
     query: { id: "test-project-id" },
     pathname: "/projects/[id]",
+    asPath: "/projects/test-project-id",
     push: mockPush,
   }),
 }));
@@ -21,6 +22,7 @@ const mockFetchProjectUpdates = jest.fn();
 const mockFetchProjectMatches = jest.fn();
 
 jest.mock("@/lib/api", () => ({
+  ...jest.requireActual("@/lib/api"),
   fetchProject: (...args: unknown[]) => mockFetchProject(...args),
   fetchProjectUpdates: (...args: unknown[]) => mockFetchProjectUpdates(...args),
   fetchProjectMatches: (...args: unknown[]) => mockFetchProjectMatches(...args),

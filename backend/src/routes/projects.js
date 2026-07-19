@@ -1277,9 +1277,12 @@ router.post("/:id/matching", async (req, res, next) => {
 router.get("/:id/matching", async (req, res, next) => {
   try {
     const result = await pool.query(
-      `SELECT id, project_id, matcher_address, cap_xlm, multiplier, matched_xlm, expires_at, created_at
+      `SELECT id, project_id, matcher_address, cap_xlm, multiplier, matched_xlm, expires_at, created_at, status
        FROM donation_matches
-       WHERE project_id = $1 AND expires_at > NOW()
+       WHERE project_id = $1
+         AND status = 'active'
+         AND expires_at > NOW()
+         AND matched_xlm < cap_xlm
        ORDER BY created_at DESC`,
       [req.params.id],
     );
@@ -1296,6 +1299,7 @@ router.get("/:id/matching", async (req, res, next) => {
       ).toFixed(7),
       expiresAt: new Date(row.expires_at).toISOString(),
       createdAt: new Date(row.created_at).toISOString(),
+      status: row.status,
     }));
 
     res.json({ success: true, data: matches });

@@ -1,7 +1,7 @@
 /**
  * pages/projects/[id].tsx — Single project detail + donate
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/router";
 import type { GetServerSideProps } from "next";
 import PageMeta from "@/components/PageMeta";
@@ -152,6 +152,18 @@ export default function ProjectDetail({ ogProject }: ProjectDetailProps) {
       .catch((err) => setLoadError(err))
       .finally(() => setLoading(false));
   }, [id, publicKey]);
+
+  // Filter matches to only show active, non-expired, and non-exhausted pools
+  const activeMatches = useMemo(
+    () =>
+      matches.filter(
+        (m: any) =>
+          m.status === "active" &&
+          new Date(m.expiresAt) > new Date() &&
+          parseFloat(m.remainingXLM) > 0,
+      ),
+    [matches],
+  );
 
   const handleRetryLoad = () => {
     if (isRetrying || !id) return;
@@ -792,14 +804,6 @@ export default function ProjectDetail({ ogProject }: ProjectDetailProps) {
     ? formatCountdown(activeCampaign.deadline, countdownNow)
     : null;
 
-  const activeMatches = matches.filter((match) => {
-    const expiresAtTime = new Date(match.expiresAt).getTime();
-    const isExpired = expiresAtTime <= countdownNow;
-    const isExhausted = Number(match.matchedXLM) >= Number(match.capXLM);
-    const isCancelled = match.status === "cancelled" || match.status === "expired" || match.status === "exhausted";
-    return !isExpired && !isExhausted && !isCancelled;
-  });
-
   const calcAmountNum = parseFloat(calcAmount) || 0;
   const estimatedCO2 = calcAmountNum * (project.co2OffsetKg || 0);
   const treesEquivalent = estimatedCO2 / 22;
@@ -917,24 +921,38 @@ export default function ProjectDetail({ ogProject }: ProjectDetailProps) {
         </div>
       )}
 
-      {matches.length > 0 && (
+      {activeMatches.length > 0 && (
         <div className="card mb-6 border-green-200 bg-gradient-to-r from-green-50 to-emerald-50">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-xs uppercase tracking-widest font-bold text-green-700 font-body mb-1">
-                Donation Matching Active
-              </p>
-              <h2 className="font-display text-xl font-semibold text-green-900">
-                Your donation will be matched up to {matches[0].multiplier}x!
-              </h2>
-              <p className="text-sm text-green-800 font-body mt-2">
-                Remaining capacity: {formatXLM(matches[0].remainingXLM)}
-              </p>
-            </div>
-            <p className="text-xs px-3 py-1 rounded-full bg-green-100 border border-green-200 text-green-800 font-body">
-              {new Date(matches[0].expiresAt).toLocaleDateString()}
-            </p>
-          </div>
+          <p className="text-xs uppercase tracking-widest font-bold text-green-700 font-body mb-3">
+            Donation Matching Active
+          </p>
+          {activeMatches.map((m: any) => {
+            const cap = parseFloat(m.capXLM);
+            const matched = parseFloat(m.matchedXLM);
+            const pct = cap > 0 ? Math.min((matched / cap) * 100, 100) : 0;
+            return (
+              <div key={m.id} className="mb-3 last:mb-0">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm font-semibold text-green-900 font-body">
+                    Donations matched {m.multiplier}× up to{" "}
+                    {formatXLM(m.capXLM)}
+                  </span>
+                  <span className="text-xs text-green-700 font-body">
+                    {formatXLM(m.remainingXLM)} remaining
+                  </span>
+                </div>
+                <div className="w-full h-2 bg-green-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-green-500 rounded-full transition-all"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                <p className="text-xs text-green-600 font-body mt-1">
+                  Expires {formatDate(m.expiresAt)}
+                </p>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -1782,37 +1800,6 @@ export default function ProjectDetail({ ogProject }: ProjectDetailProps) {
               </div>
             )}
           </div>
-
-          {activeMatches.length > 0 && (
-            <div className="card border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 mb-6 dark:from-zinc-900 dark:to-zinc-800 border dark:border-green-800">
-              <h3 className="font-display font-bold text-green-900 dark:text-green-400 mb-3 flex items-center gap-2">
-                <span>🔥</span> Donation Matching Active
-              </h3>
-              <div className="space-y-4 font-body">
-                {activeMatches.map((match) => {
-                  const cap = parseFloat(match.capXLM);
-                  const matched = parseFloat(match.matchedXLM);
-                  const progress = cap > 0 ? Math.min(100, (matched / cap) * 100) : 0;
-                  return (
-                    <div key={match.id} className="border-t border-green-100 dark:border-green-900/50 pt-3 first:border-t-0 first:pt-0">
-                      <p className="text-sm font-semibold text-green-800 dark:text-green-300 mb-1">
-                        Your donation will be matched {match.multiplier}× up to {formatXLM(match.capXLM)}!
-                      </p>
-                      <div className="h-2 w-full bg-green-200 dark:bg-green-900 rounded-full overflow-hidden my-2">
-                        <div
-                          className="h-full bg-green-600 rounded-full transition-all duration-300"
-                          style={{ width: `${progress}%` }}
-                        />
-                      </div>
-                      <p className="text-xs text-green-700 dark:text-green-400">
-                        {formatXLM(match.remainingXLM)} remaining · Expires {formatDate(match.expiresAt)}
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
 
           {publicKey ? (
             <div id="donate-form">
