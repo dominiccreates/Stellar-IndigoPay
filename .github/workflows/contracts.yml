@@ -43,10 +43,15 @@ jobs:
       - name: Build WASM (slim — no optional features)
         run: cargo build --workspace --target wasm32v1-none --release --no-default-features
 
-      - name: Check WASM size
+      - name: Install wasm-opt
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq binaryen
+
+      - name: Optimize & check WASM size
         run: |
-          size=$(stat -c%s target/wasm32v1-none/release/indigopay_contract.wasm)
-          echo "WASM size (slim): $size bytes"
+          wasm-opt -Oz target/wasm32v1-none/release/indigopay_contract.wasm \
+            -o target/wasm32v1-none/release/indigopay_contract.opt.wasm
+          size=$(stat -c%s target/wasm32v1-none/release/indigopay_contract.opt.wasm)
+          echo "WASM size (slim + wasm-opt): $size bytes"
           if [ $size -gt 65536 ]; then
             echo "Error: WASM binary exceeds 64KB limit"
             exit 1
