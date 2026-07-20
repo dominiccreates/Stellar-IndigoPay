@@ -10,6 +10,7 @@
     "lint": "npx next lint",
     "type-check": "tsc --noEmit",
     "test": "jest",
+    "test:i18n-parity": "node scripts/check-locale-parity.js",
     "test:watch": "jest --watch",
     "test:e2e": "playwright test",
     "test:e2e:update-snapshots": "playwright test --update-snapshots",

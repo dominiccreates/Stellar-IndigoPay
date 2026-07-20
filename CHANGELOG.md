@@ -18,6 +18,14 @@
 
 ### Features
 
+* **frontend:** complete 100% i18n coverage across all locale dictionaries, pluralization, and locale-aware formatting (closes #264, #262)
+  - Extract all hardcoded strings into `en.json`, `fr.json`, `es.json` with 300+ keys and full key parity
+  - Enhance `useI18n()` hook in `frontend/lib/i18n.tsx` with `tPlural()` pluralization, string interpolation (`{{param}}`), and English fallback
+  - Update `frontend/utils/format.ts` with `formatNumber` and locale-aware `formatXLM` formatting
+  - Configure `.eslintrc.json` with `eslint-plugin-i18n-json` rules
+  - Update `LanguageSwitcher.tsx` with selected checkmark indicator
+  - Add comprehensive unit tests in `frontend/lib/__tests__/i18n.test.tsx` and key parity check script `check-locale-parity.js`
+
 * **frontend:** refactor the admin verification queue table with `@tanstack/react-table`, sortable status/date/CO₂ columns, status filter pills, responsive mobile expansion, and server-driven pagination controls
 
 * **backend:** Redis-backed response caching middleware with request coalescing (GF-044, closes #149)
