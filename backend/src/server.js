@@ -250,6 +250,18 @@ try {
   );
 }
 
+// Admin projection-engine management (event-sourcing rebuild endpoints).
+try {
+  const adminProjectionsRouter = require("./routes/admin/projections");
+  app.use("/api/admin/projections", adminProjectionsRouter);
+  app.use("/api/v1/admin/projections", adminProjectionsRouter);
+} catch (err) {
+  logger.error(
+    { event: "route_load_failed", route: "admin/projections", err: err.message },
+    "Failed to load admin projections route module",
+  );
+}
+
 // ── Application routes ──────────────────────────────────────────────────────
 // Each route file is mounted under both /api and /api/v1 so that the v1
 // versioned path and the legacy unversioned path stay in lockstep.
